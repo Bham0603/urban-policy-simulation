@@ -26,6 +26,8 @@ SUB-04_Data_Engineering/
 │   ├── network.graphml       ← OSM street network (GraphML)
 │   └── edges.parquet         ← OSM edge list (GeoParquet)
 │
+├── validation_data/          ← Data for validation purposes
+│
 └── pipelines/                ← Data acquisition & processing scripts
     ├── 1_download_osm_network.py
     └── 2_fetch_census_demographics.py  (placeholder)
