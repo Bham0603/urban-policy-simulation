@@ -30,7 +30,7 @@ import geopandas as gpd
 # Rajiv Chowk Metro Station coordinates (WGS-84)
 CENTER_LAT = 28.6328
 CENTER_LNG = 77.2197
-RADIUS_M = 2000  # 2 km radius
+RADIUS_M = 3000  # 3 km radius
 
 NETWORK_TYPE = "drive"  # drivable roads only
 
