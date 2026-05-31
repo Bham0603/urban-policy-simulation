@@ -152,27 +152,20 @@ has_metro_pass    bool
 
 ### FROM SUB-02 — Agent Behavior / AI (Person 2)
 
-> **Priority: 🟡 MEDIUM — their code works in isolation, needs integration into my engine.**
+> **Priority: ✅ COMPLETED — Code has been successfully integrated.**
 
-#### What they have that I need:
-Their agent behavior stack in `ai/sim/agents/` is more advanced than my `simulation/simulation/agents.py`:
-- 5 Indian occupational archetypes (vs my generic demographics)
-- Household car-sharing mutex
-- Multi-leg activity schedules (vs my simple home↔work)
-- Frustration-driven mode switching
-- Per-occupation utility weights
+#### Status Update:
+We have successfully merged their advanced agent behavior stack from `ai/sim/agents/` into the simulation core (`simulation/simulation/agents.py` and `simulation/simulation/engine.py`).
 
-#### What I need from them:
-
-| # | Deliverable | Why |
+| # | Deliverable | Status |
 |---|---|---|
-| 1 | **Merge their `Occupation` enum + archetype weights into my `agents.py`** | My agents don't have occupational archetypes. Their `UtilityWeights.for_occupation()` is ready. |
-| 2 | **Merge their `Household` car-sharing logic** | My agents don't share cars. Their `Household.request_car()` / `release_car()` pattern is clean. |
-| 3 | **Merge their `ActivitySchedule` multi-leg tour system** | My agents only do home→work→home. Their schedule supports Home→School→Work→Shopping→Home. |
-| 4 | **Merge their `AgentMemory` frustration tracking** | My memory is `list[dict]`. Theirs is a proper `AgentMemory` with `frustration_by_mode` and `habit_bonus()`. |
-| 5 | **Refactor their `population.py` to use real OSM node IDs** | Their `build_population()` uses `rng.integers(0, n_nodes)`. Must accept real node IDs from SUB-04. |
+| 1 | Merge their `Occupation` enum + archetype weights into my `agents.py` | ✅ **DONE** |
+| 2 | Merge their `Household` car-sharing logic | ✅ **DONE** |
+| 3 | Merge their `ActivitySchedule` multi-leg tour system | ✅ **DONE** |
+| 4 | Merge their `AgentMemory` frustration tracking | ✅ **DONE** |
+| 5 | Refactor their `population.py` to use real OSM node IDs | ✅ **DONE** (Implemented in `engine.py`) |
 
-> **Decision needed:** Do we merge their code INTO `simulation/simulation/agents.py`, or do we make `simulation/` import from `ai/sim/agents/`? Keeping one canonical location avoids drift.
+> **Decision made:** We merged their code INTO `simulation/simulation/agents.py` and `engine.py` to keep the simulation core as the single canonical source of truth and avoid drift. No further help is needed from Person 2 for Phase 1!
 
 ---
 
