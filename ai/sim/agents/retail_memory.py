@@ -43,19 +43,26 @@ class RetailMemory:
     # Recording
     # ------------------------------------------------------------------ #
 
-    def record_sales(self, outcome: SalesOutcome) -> None:
-        """Append a daily sales outcome and update frustration."""
+    def record_sales(self, outcome: SalesOutcome, ignore_frustration: bool = False) -> None:
+        """Append a daily sales outcome and update frustration.
+
+        If ignore_frustration is True, rolling sales are logged but location-based
+        frustration is not penalized (e.g. when out of stock / idle).
+        """
         old_avg = self.avg_revenue()
 
         self.sales_history.append(outcome)
 
-        if old_avg is not None and old_avg > 0:
-            if outcome.revenue < old_avg * 0.70:
-                # Revenue dropped ≥30 % below average → frustration up
-                self.frustration = min(5.0, self.frustration + 1.0)
-            else:
-                # Normal or good day → cool down
-                self.frustration = max(0.0, self.frustration - 0.3)
+        if ignore_frustration:
+            # Out of stock or idle time: do not penalise location frustration!
+            return
+
+        # If vendor makes profit (revenue > 0) -> decrease frustration by 0.25!
+        if outcome.revenue > 0.0:
+            self.frustration = max(0.0, self.frustration - 0.25)
+        else:
+            # Zero revenue day (not ignored) -> frustration spikes by 1.0
+            self.frustration = min(5.0, self.frustration + 1.0)
 
     # ------------------------------------------------------------------ #
     # Queries

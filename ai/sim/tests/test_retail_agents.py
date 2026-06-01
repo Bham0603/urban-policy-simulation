@@ -240,3 +240,31 @@ def test_purchase_fails_when_out_of_stock() -> None:
 
     assert result.success is False
     assert result.reason == "Stall is out of stock"
+
+
+# ------------------------------------------------------------------ #
+# 7. Record sales ignore_frustration behavior
+# ------------------------------------------------------------------ #
+
+
+def test_record_sales_ignore_frustration() -> None:
+    """Out of stock or idle days should not penalize location frustration."""
+    stall = _make_food_stall()
+    mem = stall.retail_memory
+
+    # Establish baseline sales history
+    mem.record_sales(SalesOutcome(revenue=100.0, customers_served=2, foot_traffic=20, location_node=10))
+    mem.record_sales(SalesOutcome(revenue=100.0, customers_served=2, foot_traffic=20, location_node=10))
+
+    initial_frustration = mem.frustration
+
+    # Record a terrible day (zero revenue) but set ignore_frustration = True
+    mem.record_sales(
+        SalesOutcome(revenue=0.0, customers_served=0, foot_traffic=20, location_node=10),
+        ignore_frustration=True
+    )
+
+    # Frustration should NOT have increased
+    assert mem.frustration == initial_frustration
+    assert len(mem.sales_history) == 3
+
