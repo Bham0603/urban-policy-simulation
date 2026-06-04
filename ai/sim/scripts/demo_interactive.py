@@ -35,6 +35,11 @@ from sim.agents.supplier import WholesaleSupplier
 from sim.agents.officer import EnforcementOfficer
 from sim.agents.delivery import DeliveryAgent
 from sim.agents.schedule import ActivitySchedule, Activity, ActivityType
+from sim.agents.bus_driver import BusDriver
+from sim.agents.metro_conductor import MetroConductor
+from sim.agents.traffic_police import TrafficPolice
+from sim.agents.drainage_worker import DrainageWorker
+
 
 # ANSI terminal colors for premium styling
 C_RESET = "\033[0m"
@@ -731,6 +736,173 @@ def scenario_deliveries_surge() -> None:
     input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
 
 # ====================================================================== #
+# SCENARIO 6: Delhi Public Transit & Municipal Mitigation Dashboard
+# ====================================================================== #
+def scenario_municipal_mitigation() -> None:
+    import json
+    clear_screen()
+    print_header("SCENARIO 6: DELHI PUBLIC TRANSIT & MUNICIPAL MITIGATION")
+    print(f"{C_DIM}This scenario demonstrates public transit operators (Metro and Bus) under{C_RESET}")
+    print(f"{C_DIM}monsoon stress, and the role of municipal mitigation agents.{C_RESET}\n")
+
+    # 1. Load Route Data
+    bus_stops = []
+    metro_stations = []
+    
+    # Load bus routes from JSON
+    try:
+        base_path = os.path.dirname(__file__)
+        bus_json_path = os.path.abspath(os.path.join(base_path, "..", "..", "..", "data", "processed_data", "bus_routes.json"))
+        with open(bus_json_path, "r", encoding="utf-8") as f:
+            routes = json.load(f)
+            # Find Route 522 stops
+            route_522 = next((r for r in routes if r["route_id"] == "route_4"), routes[0])
+            bus_stops = route_522["stops"]
+            route_name = route_522["route_name"]
+    except Exception:
+        # Fallback to hardcoded Delhi Bus 522 stops
+        route_name = "Route 522"
+        bus_stops = [
+            {"name": "Ambedkar Nagar Terminal", "lat": 28.5200, "lon": 77.2300},
+            {"name": "AIIMS", "lat": 28.5670, "lon": 77.2090},
+            {"name": "Krishi Bhawan", "lat": 28.6140, "lon": 77.2100},
+            {"name": "Connaught Place", "lat": 28.6328, "lon": 77.2197}
+        ]
+
+    # Load metro network from JSON
+    try:
+        base_path = os.path.dirname(__file__)
+        metro_json_path = os.path.abspath(os.path.join(base_path, "..", "..", "..", "data", "processed_data", "metro_network.json"))
+        with open(metro_json_path, "r", encoding="utf-8") as f:
+            net = json.load(f)
+            metro_stations = net["stations"]
+    except Exception:
+        # Fallback to hardcoded Delhi Metro Yellow Line stations
+        metro_stations = [
+            {"id": "new_delhi", "name": "New Delhi"},
+            {"id": "rajiv_chowk", "name": "Rajiv Chowk"},
+            {"id": "patel_chowk", "name": "Patel Chowk"}
+        ]
+
+    # 2. Instantiate Transit Operators
+    bus = BusDriver(id=801, route_id="route_4", route_name=route_name, stops=bus_stops, capacity=50)
+    metro = MetroConductor(id=802, line_name="Yellow Line", stations=metro_stations, capacity=300)
+
+    print(f"{C_BOLD}Public Transit Fleet Status (Baseline):{C_RESET}")
+    print(f"  [Bus]   {bus.route_name} at Stop: {bus.stops[bus.current_stop_idx]['name']}")
+    print(f"          Comfort level:      {make_progress_bar(bus.get_comfort_score(), 1.0, color=C_GREEN)}")
+    print(f"  [Metro] {metro.line_name} at Station: {metro.stations[metro.current_station_idx]['name']}")
+    print(f"          Comfort level:      {make_progress_bar(metro.get_comfort_score(), 1.0, color=C_GREEN)}")
+
+    # 3. Simulate weather shock
+    raw_monsoon = input(f"\n{C_BOLD}Simulate heavy monsoon storm? (y/n) [default: y]: {C_RESET}").strip().lower()
+    is_monsoon = raw_monsoon != "n"
+
+    rain_intensity = 0.9 if is_monsoon else 0.0
+    road_congestion = 2.5 if is_monsoon else 1.0
+    
+    if is_monsoon:
+        print(f"\n{C_BOLD}{C_RED}⛈ HEAVY MONSOON STORM DETECTED (Rain: {rain_intensity}) ⛈{C_RESET}")
+        print(f"  - Road nodes are waterlogged (flooding index = 0.8)")
+        print(f"  - Commuters rush to shelters, spiking metro passenger load!")
+        
+        # Simulating passenger loads
+        bus.board_passengers(15) # some riders stay on bus
+        metro.board_passengers(265) # metro gets highly crowded
+    else:
+        print(f"\n{C_BOLD}{C_GREEN}☀️ CLEAR WEATHER CONDITIONS ☀️{C_RESET}")
+        bus.board_passengers(10)
+        metro.board_passengers(60)
+
+    # Initial travel times under simulated weather
+    base_bus_delay = bus.advance_stop(rain_intensity=rain_intensity, road_congestion=road_congestion)
+    # Undo step increment for demonstration purposes
+    bus.current_stop_idx = (bus.current_stop_idx - 1) % len(bus.stops)
+
+    print(f"\n{C_BOLD}Current Travel Impacts:{C_RESET}")
+    print(f"  Bus Stop-to-Stop travel time: {C_BOLD}{C_RED if base_bus_delay > 10 else C_GREEN}{base_bus_delay:.2f} mins{C_RESET} (Base: 5.0 mins)")
+    print(f"  Bus Passenger Count:          {bus.passenger_count}/{bus.capacity} (Comfort: {make_progress_bar(bus.get_comfort_score(), 1.0, color=C_YELLOW if bus.get_comfort_score() > 0.4 else C_RED)})")
+    print(f"  Metro Station-to-Station time:{C_BOLD}{C_GREEN}{metro.advance_station():.2f} mins{C_RESET} ({C_CYAN}Fixed - runs underground!{C_RESET})")
+    # Undo step increment
+    metro.current_station_idx = metro.current_station_idx - metro.direction
+    print(f"  Metro Passenger Count:        {metro.passenger_count}/{metro.capacity} (Comfort: {make_progress_bar(metro.get_comfort_score(), 1.0, color=C_YELLOW if metro.get_comfort_score() > 0.4 else C_RED)})")
+
+    if not is_monsoon:
+        input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
+        return
+
+    # 4. Mitigation Actions
+    print(f"\n{C_BOLD}{C_CYAN}========================================================================{C_RESET}")
+    print(f"{C_BOLD}{C_CYAN}                      MUNICIPAL MITIGATION CONSOLE                      {C_RESET}")
+    print(f"{C_BOLD}{C_CYAN}========================================================================{C_RESET}")
+    print(f"  [1] Dispatch Drainage Worker (drains water logged roads)")
+    print(f"  [2] Station Traffic Police (coordinates traffic, reduces congestion)")
+    print(f"  [3] Apply BOTH Mitigations (Joint municipal effort)")
+    print(f"  [4] None (Let gridlock resolve naturally)")
+    
+    choice = input(f"\n{C_BOLD}Select mitigation action [1-4]: {C_RESET}").strip()
+    
+    eff_rain = rain_intensity
+    eff_congestion = road_congestion
+    
+    if choice == "1" or choice == "3":
+        print(f"\n{C_BOLD}{C_BLUE}Dispatching Drainage Worker...{C_RESET}")
+        worker = DrainageWorker(id=901, current_location=0, clearing_power=0.3)
+        worker.dispatch_to(10)
+        
+        # Animate drainage work
+        bar_length = 20
+        for i in range(1, bar_length + 1):
+            ratio = i / bar_length
+            water = "~" * (bar_length - i)
+            drained = "█" * i
+            print(f"\r  Clearing waterlogging: [{C_BLUE}{drained}{C_DIM}{water}{C_RESET}] {int(ratio*100)}%", end="", flush=True)
+            time.sleep(0.04)
+        print()
+        
+        # Drainage clears waterlogged delay
+        eff_rain = 0.0 # water cleared from road
+        print(f"  {C_GREEN}✔ Road flooding cleared by drainage worker!{C_RESET}")
+
+    if choice == "2" or choice == "3":
+        print(f"\n{C_BOLD}{C_YELLOW}Stationing Traffic Police...{C_RESET}")
+        police = TrafficPolice(id=902, current_location=0, efficiency=0.4)
+        
+        # Animate police direction
+        bar_length = 20
+        for i in range(1, bar_length + 1):
+            ratio = i / bar_length
+            spaces = " " * (i % 5)
+            print(f"\r  Police directing traffic: [🚦 {C_YELLOW}👮‍♂️{C_RESET}{spaces}🚗 🚙] {int(ratio*100)}%", end="", flush=True)
+            time.sleep(0.04)
+        print()
+        
+        # Traffic police reduces congestion index
+        eff_congestion = police.clear_congestion(road_congestion)
+        print(f"  {C_GREEN}✔ Congestion index reduced from {road_congestion:.2f} to {eff_congestion:.2f} by Traffic Police!{C_RESET}")
+
+    # 5. Show mitigated results
+    final_bus_delay = bus.advance_stop(rain_intensity=eff_rain, road_congestion=eff_congestion)
+    
+    print(f"\n{C_BOLD}{C_GREEN}Mitigation Results Summary:{C_RESET}")
+    print(f"  Original Bus Travel Time: {C_BOLD}{C_RED}{base_bus_delay:.2f} minutes{C_RESET}")
+    print(f"  New Bus Travel Time:      {C_BOLD}{C_GREEN}{final_bus_delay:.2f} minutes{C_RESET}")
+    if final_bus_delay < base_bus_delay:
+        improvement = ((base_bus_delay - final_bus_delay) / base_bus_delay) * 100.0
+        print(f"  Transit speedup:          {C_BOLD}{C_GREEN}+{improvement:.1f}% travel time saved!{C_RESET}")
+    else:
+        print(f"  Transit speedup:          {C_YELLOW}No change (No mitigations applied).{C_RESET}")
+
+    # Show Metro ridership shift back to normal if roads clear
+    if choice == "1" or choice == "3":
+        # roads are clear, so some commuters deboard metro and return to bus/auto
+        deboarded = metro.deboard_passengers(120)
+        print(f"\n  [Metro Update] Commuters notice clear roads. Deboarding {deboarded} passengers back to surface modes.")
+        print(f"  New Metro Passenger Count: {metro.passenger_count}/{metro.capacity} (Comfort: {make_progress_bar(metro.get_comfort_score(), 1.0, color=C_GREEN)})")
+
+    input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
+
+# ====================================================================== #
 # Main Shell Menu
 # ====================================================================== #
 def main() -> None:
@@ -743,10 +915,11 @@ def main() -> None:
         print(f"  {C_BOLD}{C_GREEN}[3]{C_RESET} Scenario 3: Weather Disruptions & Store Staff Tardiness Dashboard")
         print(f"  {C_BOLD}{C_GREEN}[4]{C_RESET} Scenario 4: Wholesale Restocking Delays (Dry vs. Rain Conditions)")
         print(f"  {C_BOLD}{C_GREEN}[5]{C_RESET} Scenario 5: Delivery App Choice & Monsoon Surge Hikes")
-        print(f"  {C_BOLD}{C_RED}[6]{C_RESET} Exit Dashboard")
+        print(f"  {C_BOLD}{C_GREEN}[6]{C_RESET} Scenario 6: Delhi Public Transit & Municipal Mitigation Dashboard")
+        print(f"  {C_BOLD}{C_RED}[7]{C_RESET} Exit Dashboard")
         print()
 
-        choice = input(f"{C_BOLD}Enter scenario number [1-6]: {C_RESET}").strip()
+        choice = input(f"{C_BOLD}Enter scenario number [1-7]: {C_RESET}").strip()
         if choice == "1":
             scenario_transaction()
         elif choice == "2":
@@ -758,6 +931,8 @@ def main() -> None:
         elif choice == "5":
             scenario_deliveries_surge()
         elif choice == "6":
+            scenario_municipal_mitigation()
+        elif choice == "7":
             clear_screen()
             print(f"\n{C_BOLD}{C_GREEN}Thank you for playing the simulator! Goodbye!{C_RESET}\n")
             break
