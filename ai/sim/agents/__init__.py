@@ -26,6 +26,9 @@ from sim.agents.stall_owner import (
 )
 from sim.agents.store_agents import Shift, StoreManager, StoreStaff
 from sim.agents.retail_interaction import PurchaseResult, process_purchase
+from sim.agents.supplier import WholesaleSupplier
+from sim.agents.officer import EnforcementOfficer
+from sim.agents.delivery import DeliveryAgent
 
 __all__ = [
     "Agent",
@@ -59,4 +62,7 @@ __all__ = [
     "Shift",
     "PurchaseResult",
     "process_purchase",
+    "WholesaleSupplier",
+    "EnforcementOfficer",
+    "DeliveryAgent",
 ]

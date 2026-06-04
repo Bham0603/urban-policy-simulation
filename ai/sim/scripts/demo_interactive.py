@@ -18,6 +18,10 @@ from sim.agents.shop_choice import ShopAlternative, ShopChoiceModel, ShoppingNee
 from sim.agents.stall_owner import FoodStallOwner, ClothesStallOwner, AccessoriesStallOwner
 from sim.agents.store_agents import StoreManager, StoreStaff
 from sim.agents.utility_weights import UtilityWeights
+from sim.agents.supplier import WholesaleSupplier
+from sim.agents.officer import EnforcementOfficer
+from sim.agents.delivery import DeliveryAgent
+from sim.agents.schedule import ActivitySchedule, Activity, ActivityType
 
 # ANSI terminal colors for premium styling
 C_RESET = "\033[0m"
@@ -477,6 +481,243 @@ def scenario_weather_disruption() -> None:
     input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
 
 # ====================================================================== #
+# SCENARIO 4: Wholesale Restocking Delays (Dry vs. Rain Conditions)
+# ====================================================================== #
+def scenario_restock_delays() -> None:
+    clear_screen()
+    print_header("SCENARIO 4: WHOLESALE RESTOCKING DELAYS (DRY VS. RAIN)")
+    print(f"{C_DIM}This scenario demonstrates Raju (Food Stall Owner) restocking from a wholesale{C_RESET}")
+    print(f"{C_DIM}supplier under different weather conditions.{C_RESET}")
+    print(f"{C_DIM}Rain does NOT change the wholesale price, but doubles travel time due to waterlogging.{C_RESET}\n")
+
+    # Initialize supplier and stall owner
+    supplier = WholesaleSupplier(id=501, location_node=100, base_wholesale_price=20.0)
+    raju = FoodStallOwner(id=301, home_node=0, current_location=10, cash_balance=500.0, inventory=0.3)
+
+    print(f"{C_BOLD}Initial State:{C_RESET}")
+    print(f"  Raju's Cash Balance: ₹{raju.cash_balance:.2f}")
+    print(f"  Raju's Inventory:    {make_progress_bar(raju.inventory, 1.0, color=C_CYAN)}")
+    print(f"  Supplier Wholesale Unit Price: ₹{supplier.get_wholesale_price():.2f}")
+    print(f"  Supplier Stock:      {make_progress_bar(supplier.inventory, 1.0, color=C_GREEN)}")
+
+    # 1. Restock in Dry Conditions
+    print(f"\n{C_BOLD}{C_BLUE}--- Part 1: Restocking in Dry Conditions (Rain = 0.0) ---{C_RESET}")
+    time.sleep(0.5)
+    print("Raju is traveling to the wholesale supplier...")
+    
+    # Progress animation for dry travel
+    bar_length = 20
+    for i in range(1, bar_length + 1):
+        ratio = i / bar_length
+        filled = "█" * i
+        empty = "░" * (bar_length - i)
+        print(f"\r  Travel: [{C_GREEN}{filled}{C_DIM}{empty}{C_RESET}] {int(ratio*100)}% (Est. 30m)", end="", flush=True)
+        time.sleep(0.04)
+    print()
+
+    # Perform restock
+    dry_time = raju.restock_from_supplier(supplier, rain_intensity=0.0)
+    
+    print(f"  {C_GREEN}✔ Restock Completed!{C_RESET}")
+    print(f"  Travel Time:         {C_BOLD}{dry_time:.1f} minutes{C_RESET}")
+    print(f"  Raju's New Cash:     ₹{raju.cash_balance:.2f}")
+    print(f"  Raju's New Inventory:{make_progress_bar(raju.inventory, 1.0, color=C_CYAN)}")
+    print(f"  Supplier Stock left: {make_progress_bar(supplier.inventory, 1.0, color=C_GREEN)}")
+
+    # Reset Raju and Supplier for Wet Conditions
+    raju.inventory = 0.3
+    raju.cash_balance = 500.0
+    supplier.inventory = 1.0
+
+    # 2. Restock in Wet Conditions
+    print(f"\n{C_BOLD}{C_YELLOW}--- Part 2: Restocking in Monsoon/Rainy Conditions (Rain = 1.0) ---{C_RESET}")
+    time.sleep(0.5)
+    print("Raju is traveling to the wholesale supplier in heavy rain...")
+    
+    # Progress animation for wet travel (slower)
+    for i in range(1, bar_length + 1):
+        ratio = i / bar_length
+        filled = "█" * i
+        empty = "░" * (bar_length - i)
+        print(f"\r  Travel (Rain Delay): [{C_RED}{filled}{C_DIM}{empty}{C_RESET}] {int(ratio*100)}% (Est. 60m)", end="", flush=True)
+        time.sleep(0.07)
+    print()
+
+    # Perform restock
+    wet_time = raju.restock_from_supplier(supplier, rain_intensity=1.0)
+
+    print(f"  {C_GREEN}✔ Restock Completed!{C_RESET}")
+    print(f"  Travel Time:         {C_BOLD}{wet_time:.1f} minutes{C_RESET} ({C_RED}100% delay applied{C_RESET})")
+    print(f"  Wholesale price paid:₹{supplier.get_wholesale_price():.2f} per unit ({C_GREEN}Unchanged!{C_RESET})")
+    print(f"  Raju's New Cash:     ₹{raju.cash_balance:.2f} ({C_GREEN}Same cost charged!{C_RESET})")
+    print(f"  Raju's New Inventory:{make_progress_bar(raju.inventory, 1.0, color=C_CYAN)}")
+    print(f"  Supplier Stock left: {make_progress_bar(supplier.inventory, 1.0, color=C_GREEN)}")
+
+    input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
+
+# ====================================================================== #
+# SCENARIO 5: Delivery App Choice & Monsoon Surge Hikes
+# ====================================================================== #
+def scenario_deliveries_surge() -> None:
+    clear_screen()
+    print_header("SCENARIO 5: DELIVERY APP CHOICE & MONSOON SURGE HIKES")
+    print(f"{C_DIM}In this scenario, a busy executive (Vikram) and a relaxed worker (Asha){C_RESET}")
+    print(f"{C_DIM}choose whether to order delivery or travel physically to a formal store.{C_RESET}")
+    print(f"{C_DIM}Rain triggers a surge delivery pricing hike (up to 2.5x base fee).{C_RESET}\n")
+
+    # 1. Setup Agents
+    # Vikram: 3 activities (Busy)
+    vikram = Agent(
+        id=601,
+        home_node=5,
+        work_node=30,
+        income_bracket=5,
+        age=45,
+        household_id=20,
+        occupation=Occupation.OFFICE_EXECUTIVE,
+        schedule=ActivitySchedule(
+            activities=[
+                Activity(ActivityType.HOME, 5, 0, 480),
+                Activity(ActivityType.WORK, 30, 480, 480),
+                Activity(ActivityType.RECREATION, 15, 960, 120),
+            ]
+        ),
+        shopping_needs=[ShoppingNeed("food", 0.8)],
+        weights=UtilityWeights.for_occupation(Occupation.OFFICE_EXECUTIVE),
+        cash_balance=2000.0
+    )
+
+    # Asha: 1 activity (Relaxed)
+    asha = Agent(
+        id=602,
+        home_node=5,
+        work_node=None,
+        income_bracket=2,
+        age=34,
+        household_id=10,
+        occupation=Occupation.BLUE_COLLAR_WORKER,
+        schedule=ActivitySchedule(
+            activities=[
+                Activity(ActivityType.HOME, 5, 0, 1440),
+            ]
+        ),
+        shopping_needs=[ShoppingNeed("food", 0.8)],
+        cash_balance=800.0
+    )
+
+    # Delivery agent
+    rahul = DeliveryAgent(id=701, home_node=12, current_location=12, cash_balance=150.0, earnings=0.0)
+
+    # 2. Get user input for rain intensity
+    try:
+        raw_rain = input(f"{C_BOLD}Enter rain intensity [0.0 = Dry, 1.0 = Storm] (default 0.8): {C_RESET}")
+        rain_intensity = float(raw_rain) if raw_rain.strip() else 0.8
+        rain_intensity = max(0.0, min(1.0, rain_intensity))
+    except ValueError:
+        rain_intensity = 0.8
+
+    # Calculate dynamic delivery fee
+    base_fee = 40.0
+    fee = DeliveryAgent.get_delivery_fee(base_fee=base_fee, rain_intensity=rain_intensity)
+    multiplier = fee / base_fee
+
+    print(f"\n{C_BOLD}Dynamic Delivery Pricing Status:{C_RESET}")
+    print(f"  Rain Intensity:      {C_CYAN}{rain_intensity:.2f}{C_RESET}")
+    print(f"  Surge Multiplier:    {C_YELLOW}{multiplier:.2f}x{C_RESET}")
+    print(f"  Total Delivery Fee:  {C_GREEN}₹{fee:.2f}{C_RESET} (Base: ₹{base_fee:.2f})")
+
+    # Define choice alternatives
+    # For delivery, price_level increases with the fee
+    price_level_delivery = 0.8 + (fee / 50.0) # base level 0.8 + fee contribution
+    
+    alts = [
+        # Store Alternative: requires travel time and distance
+        ShopAlternative(
+            shop_id=101,
+            shop_type=ShopType.FORMAL_STORE,
+            distance_km=1.8,
+            travel_time_min=15.0,
+            price_level=0.8,
+            product_match=0.9
+        ),
+        # Delivery Alternative: zero travel time/distance for shopper, but higher price
+        ShopAlternative(
+            shop_id=102,
+            shop_type=ShopType.DELIVERY,
+            distance_km=0.0,
+            travel_time_min=0.0,
+            price_level=price_level_delivery,
+            product_match=0.9
+        )
+    ]
+
+    choice_model = ShopChoiceModel(rng=np.random.default_rng(42))
+
+    # Evaluate for Asha (Relaxed)
+    print(f"\n{C_BOLD}--- Asha (Relaxed, Non-busy Worker) ---{C_RESET}")
+    print(f"  Busy status: {C_GREEN}False (1 schedule activity){C_RESET}")
+    for alt in alts:
+        u = choice_model.utility(asha, alt)
+        print(f"  {alt.shop_type.value:15s} | Price Level: {alt.price_level:.2f} | Utility: {C_GREEN if u > -2 else C_RED}{u:8.4f}{C_RESET}")
+    chosen_asha = choice_model.choose(asha, alts, stochastic=False)
+    print(f"  ➜ {C_BOLD}{C_GREEN}Asha decides to shop at: {chosen_asha.shop_type.value}{C_RESET}")
+
+    # Evaluate for Vikram (Busy)
+    print(f"\n{C_BOLD}--- Vikram (Busy Office Executive) ---{C_RESET}")
+    print(f"  Busy status: {C_RED}True (3 schedule activities → Busy Bonus!){C_RESET}")
+    for alt in alts:
+        u = choice_model.utility(vikram, alt)
+        print(f"  {alt.shop_type.value:15s} | Price Level: {alt.price_level:.2f} | Utility: {C_GREEN if u > -2 else C_RED}{u:8.4f}{C_RESET}")
+    chosen_vikram = choice_model.choose(vikram, alts, stochastic=False)
+    print(f"  ➜ {C_BOLD}{C_GREEN}Vikram decides to shop at: {chosen_vikram.shop_type.value}{C_RESET}")
+
+    # Process Vikram's Transaction
+    print(f"\n{C_BOLD}{C_BLUE}========================================================================{C_RESET}")
+    print(f"{C_BOLD}{C_BLUE}                  EXECUTING SELECTED SHOPPING PLANS                     {C_RESET}")
+    print(f"{C_BOLD}{C_BLUE}========================================================================{C_RESET}")
+
+    for agent, name, chosen in [(asha, "Asha", chosen_asha), (vikram, "Vikram", chosen_vikram)]:
+        print(f"\n{C_BOLD}{name}'s Action:{C_RESET}")
+        if chosen.shop_type == ShopType.DELIVERY:
+            print(f"  Shopper orders via Delivery App. Dispatching Rahul (Delivery Agent)...")
+            
+            # Simple delivery dispatch animation
+            bar_length = 20
+            for i in range(1, bar_length + 1):
+                ratio = i / bar_length
+                spaces_before = " " * i
+                spaces_after = " " * (bar_length - i)
+                print(f"\r  Rahul riding bike: [{C_YELLOW}{spaces_before}🚲{spaces_after}{C_RESET}] {int(ratio*100)}%", end="", flush=True)
+                time.sleep(0.04)
+            print()
+            
+            # Rahul delivers order
+            # Rahul earns fee, ends up at agent's home node
+            rahul.deliver_order(fee, destination_node=agent.home_node)
+            
+            # Deduct cost from shopper
+            # Assume base product price is ₹150.0
+            product_cost = 150.0
+            total_charged = product_cost + fee
+            agent.cash_balance = max(0.0, agent.cash_balance - total_charged)
+            
+            print(f"  {C_GREEN}✔ Delivery Successful!{C_RESET}")
+            print(f"  Total charged to {name}:  ₹{total_charged:.2f} (Product: ₹{product_cost:.2f} + Fee: ₹{fee:.2f})")
+            print(f"  {name}'s Remaining Cash: ₹{agent.cash_balance:.2f}")
+            print(f"  Rahul's Earnings today: +₹{fee:.2f}")
+            print(f"  Rahul's New Cash:       ₹{rahul.cash_balance:.2f}")
+            print(f"  Rahul's total completed: {rahul.completed_deliveries_count} delivery/ies")
+        else:
+            # Physical shop commute
+            print(f"  Shopper decides to travel physically to save cash (No delivery fee paid).")
+            product_cost = 150.0
+            agent.cash_balance = max(0.0, agent.cash_balance - product_cost)
+            print(f"  Total charged to {name}:  ₹{product_cost:.2f}")
+            print(f"  {name}'s Remaining Cash: ₹{agent.cash_balance:.2f}")
+
+    input(f"\n{C_BOLD}{C_DIM}Press Enter to return to main menu...{C_RESET}")
+
+# ====================================================================== #
 # Main Shell Menu
 # ====================================================================== #
 def main() -> None:
@@ -487,10 +728,12 @@ def main() -> None:
         print(f"  {C_BOLD}{C_GREEN}[1]{C_RESET} Scenario 1: Interactive Transaction Utility & Choice Simulator")
         print(f"  {C_BOLD}{C_GREEN}[2]{C_RESET} Scenario 2: Live Animated Stall Lifecycle (Inventory & Relocation)")
         print(f"  {C_BOLD}{C_GREEN}[3]{C_RESET} Scenario 3: Weather Disruptions & Store Staff Tardiness Dashboard")
-        print(f"  {C_BOLD}{C_RED}[4]{C_RESET} Exit Dashboard")
+        print(f"  {C_BOLD}{C_GREEN}[4]{C_RESET} Scenario 4: Wholesale Restocking Delays (Dry vs. Rain Conditions)")
+        print(f"  {C_BOLD}{C_GREEN}[5]{C_RESET} Scenario 5: Delivery App Choice & Monsoon Surge Hikes")
+        print(f"  {C_BOLD}{C_RED}[6]{C_RESET} Exit Dashboard")
         print()
 
-        choice = input(f"{C_BOLD}Enter scenario number [1-4]: {C_RESET}").strip()
+        choice = input(f"{C_BOLD}Enter scenario number [1-6]: {C_RESET}").strip()
         if choice == "1":
             scenario_transaction()
         elif choice == "2":
@@ -498,6 +741,10 @@ def main() -> None:
         elif choice == "3":
             scenario_weather_disruption()
         elif choice == "4":
+            scenario_restock_delays()
+        elif choice == "5":
+            scenario_deliveries_surge()
+        elif choice == "6":
             clear_screen()
             print(f"\n{C_BOLD}{C_GREEN}Thank you for playing the simulator! Goodbye!{C_RESET}\n")
             break

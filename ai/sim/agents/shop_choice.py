@@ -28,6 +28,7 @@ class ShopType(str, Enum):
     FOOD_STALL = "food_stall"
     CLOTHES_STALL = "clothes_stall"
     ACCESSORIES_STALL = "accessories_stall"
+    DELIVERY = "delivery"
 
 
 @dataclass
@@ -105,6 +106,7 @@ class ShopChoiceModel:
         # Formal-store preference scales with income (rich prefer formal)
         is_formal = 1.0 if alt.shop_type == ShopType.FORMAL_STORE else 0.0
         income_bonus = agent.income_bracket / 5.0  # 0.2 … 1.0
+        busy_bonus = 1.5 if (agent.is_busy() and alt.shop_type == ShopType.DELIVERY) else 0.0
 
         return (
             w.beta_price * alt.price_level * cost_scale
@@ -112,6 +114,7 @@ class ShopChoiceModel:
             + w.beta_travel_time * alt.travel_time_min
             + w.beta_product * alt.product_match
             + w.beta_formality * is_formal * income_bonus
+            + busy_bonus
         )
 
     def choose(
