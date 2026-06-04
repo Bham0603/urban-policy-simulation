@@ -7,8 +7,21 @@ Usage: python -m sim.scripts.demo_interactive
 from __future__ import annotations
 
 import os
+import sys
 import time
 import numpy as np
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 
 from sim.agents.agent import Agent
 from sim.agents.modes import Occupation
