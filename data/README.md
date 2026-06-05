@@ -48,7 +48,7 @@ data/
 
 ### OpenStreetMap Network
 
-- **Query**: Point-based, 4 km radius around (28.6328, 77.2197)
+- **Query**: Point-based, 4 km radius around (28.6328, 77.2197) covering ~3–5 km study area
 - **Network type**: `drive` (drivable roads only)
 - **Cleaning**: Largest strongly-connected component retained
 - **Projection**: Projected to local UTM zone for metric measurement accuracy

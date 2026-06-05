@@ -3,7 +3,8 @@ Pipeline 1: Download OSM Drivable Street Network — Rajiv Chowk, New Delhi
 =========================================================================
 
 Downloads the drivable street network from OpenStreetMap centered on the
-Rajiv Chowk metro station (28.6328 N, 77.2197 E) with a 4 km radius.
+Rajiv Chowk metro station (28.6328° N, 77.2197° E) with a 4 km radius
+(covering ~3–5 km study area).
 
 The string query "Rajiv Chowk, New Delhi, India" can be ambiguous (it may
 refer to the intersection, the metro station, or the broader area), so we
@@ -33,7 +34,7 @@ import geopandas as gpd
 # Rajiv Chowk Metro Station coordinates (WGS-84)
 CENTER_LAT = 28.6328
 CENTER_LNG = 77.2197
-RADIUS_M = 4000  # 4 km radius
+RADIUS_M = 4000  # 4 km radius (~3-5 km study area)
 
 NETWORK_TYPE = "drive"  # drivable roads only
 
