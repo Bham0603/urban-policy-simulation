@@ -97,7 +97,7 @@ class ShopChoiceModel:
         self.w = weights or ShopChoiceWeights()
         self.rng = rng or np.random.default_rng()
 
-    def utility(self, agent: Agent, alt: ShopAlternative) -> float:
+    def utility(self, agent: Agent, alt: ShopAlternative, rain_intensity: float = 0.0) -> float:
         """Deterministic utility of a shopping alternative for an agent."""
         w = self.w
         # Lower-income agents weight price more heavily (same pattern as mode_choice)
@@ -108,6 +108,13 @@ class ShopChoiceModel:
         income_bonus = agent.income_bracket / 5.0  # 0.2 … 1.0
         busy_bonus = 1.5 if (agent.is_busy() and alt.shop_type == ShopType.DELIVERY) else 0.0
 
+        # Discomfort / travel friction from rain for physical alternatives
+        rain_penalty = 0.0
+        if rain_intensity > 0.0 and alt.shop_type != ShopType.DELIVERY:
+            # Stalls are outdoors and highly vulnerable to rain; formal stores are sheltered but still require travel
+            is_stall = alt.shop_type in (ShopType.FOOD_STALL, ShopType.CLOTHES_STALL, ShopType.ACCESSORIES_STALL)
+            rain_penalty = (1.5 * rain_intensity) if is_stall else (0.8 * rain_intensity)
+
         return (
             w.beta_price * alt.price_level * cost_scale
             + w.beta_distance * alt.distance_km
@@ -115,6 +122,7 @@ class ShopChoiceModel:
             + w.beta_product * alt.product_match
             + w.beta_formality * is_formal * income_bonus
             + busy_bonus
+            - rain_penalty
         )
 
     def choose(
@@ -123,6 +131,7 @@ class ShopChoiceModel:
         alts: list[ShopAlternative],
         *,
         stochastic: bool = True,
+        rain_intensity: float = 0.0,
     ) -> ShopAlternative:
         """Pick the best shopping alternative via MNL (Gumbel-max trick).
 
@@ -130,6 +139,7 @@ class ShopChoiceModel:
             agent: The citizen agent shopping.
             alts: Available shopping destinations.
             stochastic: If False, pick the deterministic argmax.
+            rain_intensity: Rain intensity to factor into destination choice.
 
         Returns:
             The chosen ``ShopAlternative``.
@@ -140,7 +150,7 @@ class ShopChoiceModel:
         if not alts:
             raise ValueError("No shop alternatives provided")
 
-        utilities = np.array([self.utility(agent, a) for a in alts], dtype=float)
+        utilities = np.array([self.utility(agent, a, rain_intensity=rain_intensity) for a in alts], dtype=float)
 
         if stochastic:
             gumbel = self.rng.gumbel(size=utilities.shape)
