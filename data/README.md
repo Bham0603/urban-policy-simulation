@@ -13,7 +13,7 @@ around Rajiv Chowk Metro Station** (28.6328° N, 77.2197° E) in central New Del
 
 ## Folder Structure
 
-```
+```text
 data/
 ├── README.md                 ← You are here
 ├── requirements.txt          ← Python dependencies
@@ -41,7 +41,7 @@ data/
 ## Data Provenance
 
 | Dataset | Source | License | Status |
-|---------|--------|---------|--------|
+| ------- | ------ | ------- | ------ |
 | Street Network | [OpenStreetMap](https://www.openstreetmap.org/) via `osmnx` | ODbL 1.0 | ✅ Implemented |
 | Monsoon Weather | [Open-Meteo Historical API](https://open-meteo.com/) | CC BY 4.0 | ✅ Implemented |
 | Census Demographics | [Census of India 2011](https://censusindia.gov.in/) | Government Open Data | ⏳ Placeholder |
@@ -97,6 +97,7 @@ python pipelines/1_download_osm_network.py
 ```
 
 **Expected output:**
+
 - `processed_data/network.graphml` — Full graph in GraphML format
 - `processed_data/nodes.parquet` — Node list as GeoParquet
 - `processed_data/edges.parquet` — Edge list as GeoParquet
@@ -108,6 +109,7 @@ python pipelines/3_fetch_monsoon_weather.py
 ```
 
 **Expected output:**
+
 - `processed_data/weather_delhi.csv` — 122 daily weather records
 
 ### 4. Census Demographics (Not Yet Implemented)
@@ -120,7 +122,7 @@ python pipelines/3_fetch_monsoon_weather.py
 ## Dependencies
 
 | Package | Purpose |
-|---------|---------|
+| ------- | ------- |
 | `osmnx>=2.1.0` | OpenStreetMap network download & analysis |
 | `geopandas>=1.0.0` | Geospatial DataFrames & Parquet export |
 | `pandas>=2.2.0` | Tabular data processing |
