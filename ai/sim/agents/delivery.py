@@ -24,7 +24,7 @@ class DeliveryAgent:
     @staticmethod
     def get_delivery_fee(base_fee: float, rain_intensity: float) -> float:
         """Dynamic delivery fee containing rain surge pricing hike."""
-        if rain_intensity > 0.0:
+        if rain_intensity >= 0.5:
             # Surcharge: up to 2.5x base fee in heavy rain
             return base_fee * (1.0 + 1.5 * rain_intensity)
         return base_fee

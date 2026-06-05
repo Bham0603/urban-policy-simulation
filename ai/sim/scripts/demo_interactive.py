@@ -307,9 +307,13 @@ def scenario_animated_stall() -> None:
     print(f"{C_DIM}This scenario runs a live simulation of three different stall types.{C_RESET}")
     print(f"{C_DIM}Watch their inventory decay, frustration level, and dynamic relocation in real-time!{C_RESET}\n")
 
-    food = FoodStallOwner(id=301, home_node=0, current_location=101)
-    clothes = ClothesStallOwner(id=302, home_node=0, current_location=102)
-    acc = AccessoriesStallOwner(id=303, home_node=0, current_location=103)
+    # Initialize supplier
+    supplier = WholesaleSupplier(id=501, location_node=100, inventory=500.0, base_wholesale_price=20.0)
+
+    # Initialize vendors with cash balances
+    food = FoodStallOwner(id=301, home_node=0, current_location=101, cash_balance=500.0)
+    clothes = ClothesStallOwner(id=302, home_node=0, current_location=102, cash_balance=500.0)
+    acc = AccessoriesStallOwner(id=303, home_node=0, current_location=103, cash_balance=500.0)
 
     # Pre-populate Sunita (accessories) with good sales average so a drop triggers location frustration
     acc.retail_memory.record_sales(SalesOutcome(revenue=150.0, customers_served=3, foot_traffic=80, location_node=103))
@@ -327,50 +331,98 @@ def scenario_animated_stall() -> None:
     except ValueError:
         num_ticks = 10
 
-    print(f"\n{C_BOLD}{C_GREEN}Starting the live animation loop ({num_ticks} frames)...{C_RESET}")
+    # Ask user for weather conditions
+    try:
+        raw_rain = input(f"{C_BOLD}Is it raining today? (y/n, default: n): {C_RESET}").strip().lower()
+        is_raining = raw_rain == 'y'
+        if is_raining:
+            raw_intensity = input(f"{C_BOLD}Enter rain intensity (0.0 to 1.0, default: 0.5): {C_RESET}").strip()
+            rain_intensity = float(raw_intensity) if raw_intensity else 0.5
+            if not (0.0 <= rain_intensity <= 1.0):
+                rain_intensity = 0.5
+        else:
+            rain_intensity = 0.0
+    except Exception:
+        rain_intensity = 0.0
+
+    print(f"\n{C_BOLD}{C_GREEN}Starting the live animation loop ({num_ticks} frames, Rain Intensity: {rain_intensity})...{C_RESET}")
     time.sleep(0.8)
 
     for tick in range(1, num_ticks + 1):
         clear_screen()
         print_header(f"STALL LIFECYCLE SIMULATION - TICK {tick}/{num_ticks}")
-        
+        if rain_intensity > 0.0:
+            print(f"{C_YELLOW}Weather Status: Raining (Intensity: {rain_intensity:.2f}){C_RESET}\n")
+        else:
+            print(f"{C_GREEN}Weather Status: Clear Sky{C_RESET}\n")
+
         # 1. Check out-of-stock states
         food_is_out = food.inventory <= 0.05
         clothes_is_out = clothes.inventory <= 0.05
         acc_is_out = acc.inventory <= 0.05
 
-        # Dynamic restocking action: resets to 1.0, but uses up a tick (decays do not apply)
         restocking_stalls = {}
+        restock_times = {}
         for stall, is_out, key in [(food, food_is_out, "food"), (clothes, clothes_is_out, "clothes"), (acc, acc_is_out, "accessories")]:
             if is_out:
-                stall.restock(1.0)
+                # Commute to wholesale supplier with rain delay
+                travel_time = stall.restock_from_supplier(supplier, rain_intensity=rain_intensity)
                 restocking_stalls[key] = True
+                restock_times[key] = travel_time
             else:
                 stall.decay_inventory()
                 restocking_stalls[key] = False
+                restock_times[key] = 0.0
+
+        # Apply rain-based weather disruption check or sales decay
+        disrupted_stalls = {}
+        for stall, key in [(food, "food"), (clothes, "clothes"), (acc, "accessories")]:
+            is_disrupted = False
+            if not restocking_stalls[key]:
+                # Rain increases disruption/eviction risk
+                effective_prob = stall.disruption_probability
+                if rain_intensity > 0.0:
+                    effective_prob = min(0.9, effective_prob + rain_intensity * 0.3)
+                
+                if rng.random() < effective_prob:
+                    is_disrupted = True
+                    stall.is_disrupted_today = True
+                    stall.retail_memory.record_disruption(stall.current_location)
+                else:
+                    stall.is_disrupted_today = False
+            disrupted_stalls[key] = is_disrupted
+
+        # Scale revenue by rain intensity (less foot traffic / fewer shoppers under rain)
+        rain_revenue_scale = max(0.1, 1.0 - rain_intensity * 0.7)
 
         # 2. Record daily sales outcome
-        food_rev = 0.0 if restocking_stalls["food"] else (10.0 if tick < (num_ticks // 2 + 1) else 150.0)
-        clothes_rev = 0.0 if restocking_stalls["clothes"] else (90.0 if tick < (num_ticks // 2 + 1) else 120.0)
-        acc_rev = 0.0 if restocking_stalls["accessories"] else (15.0 if tick < (num_ticks // 2 + 1) else 60.0)
+        if tick < (num_ticks // 2 + 1):
+            food_rev = 0.0 if (restocking_stalls["food"] or disrupted_stalls["food"]) else (10.0 * rain_revenue_scale)
+            clothes_rev = 0.0 if (restocking_stalls["clothes"] or disrupted_stalls["clothes"]) else (90.0 * rain_revenue_scale)
+            acc_rev = 0.0 if (restocking_stalls["accessories"] or disrupted_stalls["accessories"]) else (15.0 * rain_revenue_scale)
+        else:
+            # Good days
+            food_rev = 0.0 if (restocking_stalls["food"] or disrupted_stalls["food"]) else (150.0 * rain_revenue_scale)
+            clothes_rev = 0.0 if (restocking_stalls["clothes"] or disrupted_stalls["clothes"]) else (120.0 * rain_revenue_scale)
+            acc_rev = 0.0 if (restocking_stalls["accessories"] or disrupted_stalls["accessories"]) else (60.0 * rain_revenue_scale)
 
         food.retail_memory.record_sales(
-            SalesOutcome(revenue=food_rev, customers_served=0 if food_rev < 50 else 3, foot_traffic=10 if tick < (num_ticks // 2 + 1) else 100, location_node=food.current_location),
+            SalesOutcome(revenue=food_rev, customers_served=0 if food_rev < 50 else 3, foot_traffic=int(10 * rain_revenue_scale) if tick < (num_ticks // 2 + 1) else int(100 * rain_revenue_scale), location_node=food.current_location),
             ignore_frustration=restocking_stalls["food"]
         )
         clothes.retail_memory.record_sales(
-            SalesOutcome(revenue=clothes_rev, customers_served=2 if clothes_rev < 100 else 3, foot_traffic=40 if tick < (num_ticks // 2 + 1) else 50, location_node=clothes.current_location),
+            SalesOutcome(revenue=clothes_rev, customers_served=2 if clothes_rev < 100 else 3, foot_traffic=int(40 * rain_revenue_scale) if tick < (num_ticks // 2 + 1) else int(50 * rain_revenue_scale), location_node=clothes.current_location),
             ignore_frustration=restocking_stalls["clothes"]
         )
         acc.retail_memory.record_sales(
-            SalesOutcome(revenue=acc_rev, customers_served=0 if acc_rev < 30 else 1, foot_traffic=5 if tick < (num_ticks // 2 + 1) else 30, location_node=acc.current_location),
+            SalesOutcome(revenue=acc_rev, customers_served=0 if acc_rev < 30 else 1, foot_traffic=int(5 * rain_revenue_scale) if tick < (num_ticks // 2 + 1) else int(30 * rain_revenue_scale), location_node=acc.current_location),
             ignore_frustration=restocking_stalls["accessories"]
         )
 
         # 3. Peer Comparison Logic (Relative Frustration Management)
         active_vendors = []
         for key, stall, rev, name in [("food", food, food_rev, "Raju (Food)"), ("clothes", clothes, clothes_rev, "Meena (Clothes)"), ("accessories", acc, acc_rev, "Sunita (Accessory)")]:
-            if not restocking_stalls[key]:
+            if not restocking_stalls[key] and not disrupted_stalls[key]:
                 active_vendors.append((stall, rev, name))
 
         comparison_logs = []
@@ -378,51 +430,62 @@ def scenario_animated_stall() -> None:
             peer_avg = sum(v[1] for v in active_vendors) / len(active_vendors)
             for stall, rev, name in active_vendors:
                 if rev < peer_avg * 0.6:
-                    # Relative peer envy: frustration increases when neighbors do much better!
                     stall.retail_memory.frustration = min(5.0, stall.retail_memory.frustration + 0.6)
                     richest_peer = max(active_vendors, key=lambda x: x[1])
                     comparison_logs.append(f"  {C_RED}⚠ Peer Envy:{C_RESET} {name} sees neighbors thriving and feels more frustrated! (₹{rev:.0f} vs ₹{richest_peer[1]:.0f})")
                 elif rev > peer_avg * 1.3:
-                    # Peer confidence: pride cools down location frustration!
                     stall.retail_memory.frustration = max(0.0, stall.retail_memory.frustration - 0.4)
                     comparison_logs.append(f"  {C_GREEN}✔ Market Leader:{C_RESET} {name} is secure leading today's street sales with ₹{rev:.0f}!")
 
-        # 4. Peer-Influenced Relocation & Clustering Action
-        # Dynamic candidate scoring: vendors prefer to cluster near successful peer locations
+        # 4. Peer-Influenced Relocation & Clustering Action with Rain Shelter Boost
         star_vendor = None
         if active_vendors:
             star_vendor = max(active_vendors, key=lambda x: x[1])[0]
 
         dynamic_candidates = list(candidates)
         clustering_node = None
+        shelter_nodes_boosted = False
         if star_vendor and star_vendor.current_location:
             star_loc = star_vendor.current_location
             new_candidates = []
             for node, ft in candidates:
-                # If a candidate node is right next to the successful vendor, boost its traffic appeal!
+                boost = 1.0
+                # Proximity boost
                 if abs(node - star_loc) <= 2:
-                    new_candidates.append((node, ft * 2))
+                    boost *= 2.0
                     clustering_node = node
-                else:
-                    new_candidates.append((node, ft))
+                
+                # Rain shelter boost: Metro/hub nodes (e.g., node 202 is metro-proximate) get extra appeal in rain!
+                if rain_intensity > 0.4 and node in (202, 203):
+                    boost *= 1.5
+                    shelter_nodes_boosted = True
+                
+                new_candidates.append((node, int(ft * boost)))
             dynamic_candidates = new_candidates
 
-        # Check relocation (only if they weren't busy restocking this tick!)
-        food_moved = food.maybe_relocate(dynamic_candidates, rng=rng) if not restocking_stalls["food"] else None
-        clothes_moved = clothes.maybe_relocate(dynamic_candidates, rng=rng) if not restocking_stalls["clothes"] else None
-        acc_moved = acc.maybe_relocate(dynamic_candidates, rng=rng) if not restocking_stalls["accessories"] else None
+        # Check relocation (only if they weren't busy restocking or disrupted this tick!)
+        food_moved = food.maybe_relocate(dynamic_candidates, rng=rng) if (not restocking_stalls["food"] and not disrupted_stalls["food"]) else None
+        clothes_moved = clothes.maybe_relocate(dynamic_candidates, rng=rng) if (not restocking_stalls["clothes"] and not disrupted_stalls["clothes"]) else None
+        acc_moved = acc.maybe_relocate(dynamic_candidates, rng=rng) if (not restocking_stalls["accessories"] and not disrupted_stalls["accessories"]) else None
 
         # Print current statuses in a gorgeous table dashboard
-        print(f"{C_BOLD}{'STALL VENDOR':20s} | {'LOCATION':10s} | {'INVENTORY STATUS':26s} | {'FRUSTRATION':26s} | {'STATUS':12s}{C_RESET}")
-        print(f"{C_DIM}{'-' * 105}{C_RESET}")
+        print(f"{C_BOLD}{'STALL VENDOR':20s} | {'LOCATION':10s} | {'CASH':9s} | {'INVENTORY STATUS':26s} | {'FRUSTRATION':26s} | {'STATUS':12s}{C_RESET}")
+        print(f"{C_DIM}{'-' * 117}{C_RESET}")
         
         for stall, name, moved in [(food, "Raju (Food)", food_moved), (clothes, "Meena (Clothes)", clothes_moved), (acc, "Sunita (Accessory)", acc_moved)]:
             loc_str = f"Node {stall.current_location}"
+            cash_str = f"₹{stall.cash_balance:.1f}"
             inv_bar = make_progress_bar(stall.inventory, 1.0, color=C_CYAN)
             frust_bar = make_progress_bar(stall.retail_memory.frustration, 5.0, color=C_YELLOW)
             
             if restocking_stalls[stall.stall_type.value]:
-                status_str = f"{C_BOLD}{C_CYAN}⚡ RESTOCKED{C_RESET}"
+                travel_time = restock_times[stall.stall_type.value]
+                status_str = f"{C_BOLD}{C_CYAN}⚡ RESTOCK({int(travel_time)}m){C_RESET}"
+            elif disrupted_stalls[stall.stall_type.value]:
+                if rain_intensity > 0.0:
+                    status_str = f"{C_BOLD}{C_RED}⛈ DISRUPTED{C_RESET}"
+                else:
+                    status_str = f"{C_BOLD}{C_RED}👮 EVICTED{C_RESET}"
             elif moved:
                 status_str = f"{C_BOLD}{C_MAGENTA}✈ MOVED{C_RESET}"
             elif stall.retail_memory.frustration > 2.0:
@@ -430,7 +493,7 @@ def scenario_animated_stall() -> None:
             else:
                 status_str = f"{C_GREEN}✔ STABLE{C_RESET}"
 
-            print(f"{name:20s} | {loc_str:10s} | {inv_bar:26s} | {frust_bar:26s} | {status_str:12s}")
+            print(f"{name:20s} | {loc_str:10s} | {cash_str:9s} | {inv_bar:26s} | {frust_bar:26s} | {status_str:12s}")
 
         # Render peer comparison live commentary
         if comparison_logs:
@@ -440,8 +503,11 @@ def scenario_animated_stall() -> None:
 
         if clustering_node and (food_moved or acc_moved):
             print(f"  {C_CYAN}✦ Agglomeration Economy:{C_RESET} Relocating vendors targeted Node {clustering_node} to cluster near successful peers!")
+        
+        if shelter_nodes_boosted and (food_moved or acc_moved):
+            print(f"  {C_YELLOW}⛈ Rain Adaptation:{C_RESET} Relocating vendors prioritized Metro-proximate sheltered nodes (Nodes 202, 203)!")
 
-        print(f"\n{C_DIM}Candidate nodes (with clustering boosts): {[(f'Node {n}', f'traffic={t}') for n, t in dynamic_candidates]}{C_RESET}")
+        print(f"\n{C_DIM}Candidate nodes (with clustering & rain boosts): {[(f'Node {n}', f'traffic={t}') for n, t in dynamic_candidates]}{C_RESET}")
         time.sleep(1.2)
 
     print(f"\n{C_BOLD}{C_GREEN}Animation finished successfully!{C_RESET}")
@@ -461,6 +527,7 @@ def scenario_weather_disruption() -> None:
     deepa = StoreStaff(id=402, home_node=12, store_node=25)
 
     manager.assign_shifts([ankit, deepa])
+    assert ankit.assigned_shift is not None
     shift_start = ankit.assigned_shift.start_time_min # 9:00 AM (540 mins)
 
     print(f"{C_BOLD}Formal Store Node: {manager.store_node}{C_RESET}")
@@ -658,6 +725,15 @@ def scenario_deliveries_surge() -> None:
             price_level=0.8,
             product_match=0.9
         ),
+        # Food Stall Alternative: Raju's food stall (very cheap, nearby, but weather-sensitive)
+        ShopAlternative(
+            shop_id=201,
+            shop_type=ShopType.FOOD_STALL,
+            distance_km=0.1,
+            travel_time_min=1.0,
+            price_level=0.15,
+            product_match=0.9
+        ),
         # Delivery Alternative: zero travel time/distance for shopper, but higher price
         ShopAlternative(
             shop_id=102,
@@ -675,18 +751,18 @@ def scenario_deliveries_surge() -> None:
     print(f"\n{C_BOLD}--- Asha (Relaxed, Non-busy Worker) ---{C_RESET}")
     print(f"  Busy status: {C_GREEN}False (1 schedule activity){C_RESET}")
     for alt in alts:
-        u = choice_model.utility(asha, alt)
+        u = choice_model.utility(asha, alt, rain_intensity=rain_intensity)
         print(f"  {alt.shop_type.value:15s} | Price Level: {alt.price_level:.2f} | Utility: {C_GREEN if u > -2 else C_RED}{u:8.4f}{C_RESET}")
-    chosen_asha = choice_model.choose(asha, alts, stochastic=False)
+    chosen_asha = choice_model.choose(asha, alts, stochastic=False, rain_intensity=rain_intensity)
     print(f"  ➜ {C_BOLD}{C_GREEN}Asha decides to shop at: {chosen_asha.shop_type.value}{C_RESET}")
 
     # Evaluate for Vikram (Busy)
     print(f"\n{C_BOLD}--- Vikram (Busy Office Executive) ---{C_RESET}")
     print(f"  Busy status: {C_RED}True (3 schedule activities → Busy Bonus!){C_RESET}")
     for alt in alts:
-        u = choice_model.utility(vikram, alt)
+        u = choice_model.utility(vikram, alt, rain_intensity=rain_intensity)
         print(f"  {alt.shop_type.value:15s} | Price Level: {alt.price_level:.2f} | Utility: {C_GREEN if u > -2 else C_RED}{u:8.4f}{C_RESET}")
-    chosen_vikram = choice_model.choose(vikram, alts, stochastic=False)
+    chosen_vikram = choice_model.choose(vikram, alts, stochastic=False, rain_intensity=rain_intensity)
     print(f"  ➜ {C_BOLD}{C_GREEN}Vikram decides to shop at: {chosen_vikram.shop_type.value}{C_RESET}")
 
     # Process Vikram's Transaction
@@ -727,8 +803,9 @@ def scenario_deliveries_surge() -> None:
             print(f"  Rahul's total completed: {rahul.completed_deliveries_count} delivery/ies")
         else:
             # Physical shop commute
+            is_stall = chosen.shop_type in (ShopType.FOOD_STALL, ShopType.CLOTHES_STALL, ShopType.ACCESSORIES_STALL)
+            product_cost = 50.0 if is_stall else 150.0
             print(f"  Shopper decides to travel physically to save cash (No delivery fee paid).")
-            product_cost = 150.0
             agent.cash_balance = max(0.0, agent.cash_balance - product_cost)
             print(f"  Total charged to {name}:  ₹{product_cost:.2f}")
             print(f"  {name}'s Remaining Cash: ₹{agent.cash_balance:.2f}")

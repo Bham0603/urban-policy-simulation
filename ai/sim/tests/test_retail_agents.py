@@ -25,6 +25,8 @@ from sim.agents import (
     ShopChoiceModel,
     ShopType,
     process_purchase,
+    DeliveryAgent,
+    ShoppingNeed,
 )
 from sim.agents.retail_memory import RetailMemory, SalesOutcome
 
@@ -267,4 +269,71 @@ def test_record_sales_ignore_frustration() -> None:
     # Frustration should NOT have increased
     assert mem.frustration == initial_frustration
     assert len(mem.sales_history) == 3
+
+
+def test_delivery_fee_surge_pricing_rain_threshold() -> None:
+    """Verify that delivery rain surcharge only applies at rain_intensity >= 0.5."""
+    base = 40.0
+    # At rain < 0.5 (e.g. 0.4), fee is unchanged (no surcharge)
+    assert DeliveryAgent.get_delivery_fee(base, 0.4) == base
+    assert DeliveryAgent.get_delivery_fee(base, 0.0) == base
+    
+    # At rain >= 0.5 (e.g. 0.5, 0.8), fee is surcharged
+    assert DeliveryAgent.get_delivery_fee(base, 0.5) > base
+    assert DeliveryAgent.get_delivery_fee(base, 0.5) == base * (1.0 + 1.5 * 0.5)
+    assert DeliveryAgent.get_delivery_fee(base, 0.8) == base * (1.0 + 1.5 * 0.8)
+
+
+def test_asha_destination_choice_clear_vs_rain() -> None:
+    """Verify Asha's food delivery / stall choices under different weather conditions."""
+    model = ShopChoiceModel(rng=np.random.default_rng(42))
+    
+    # Asha: Low-income (income_bracket=2), not busy
+    asha = Agent(
+        id=602,
+        home_node=5,
+        work_node=None,
+        income_bracket=2,
+        age=34,
+        household_id=10,
+        shopping_needs=[ShoppingNeed("food", 0.8)]
+    )
+    
+    alts = [
+        # Store Alternative
+        ShopAlternative(
+            shop_id=101,
+            shop_type=ShopType.FORMAL_STORE,
+            distance_km=1.8,
+            travel_time_min=15.0,
+            price_level=0.8,
+            product_match=0.9
+        ),
+        # Food Stall Alternative (Raju's stall: cheap, nearby)
+        ShopAlternative(
+            shop_id=201,
+            shop_type=ShopType.FOOD_STALL,
+            distance_km=0.1,
+            travel_time_min=1.0,
+            price_level=0.15,
+            product_match=0.9
+        ),
+        # Delivery Alternative (fee is 40.0, price_level = 0.8 + 40.0/50.0 = 1.6)
+        ShopAlternative(
+            shop_id=102,
+            shop_type=ShopType.DELIVERY,
+            distance_km=0.0,
+            travel_time_min=0.0,
+            price_level=1.6,
+            product_match=0.9
+        )
+    ]
+    
+    # Under clear weather (rain_intensity=0.0): Asha should choose Raju's food stall
+    choice_clear = model.choose(asha, alts, stochastic=False, rain_intensity=0.0)
+    assert choice_clear.shop_type == ShopType.FOOD_STALL
+    
+    # Under slight rain (rain_intensity=0.4): Asha should choose food delivery
+    choice_rain = model.choose(asha, alts, stochastic=False, rain_intensity=0.4)
+    assert choice_rain.shop_type == ShopType.DELIVERY
 
