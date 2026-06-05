@@ -54,6 +54,20 @@ class Agent:
     # Shopping extension — pending shopping needs for the ShopChoiceModel
     shopping_needs: list[ShoppingNeed] = field(default_factory=list)
 
+    # Cash and employment status for economic interactions
+    cash_balance: float = 1000.0
+    is_bankrupt: bool = False
+    job_search_status: str | None = None
+
+    def is_busy(self) -> bool:
+        """Returns True if the agent is busy (e.g. has 2+ non-home activities in their schedule)."""
+        if not self.schedule or not self.schedule.activities:
+            return False
+        non_home_activities = [
+            a for a in self.schedule.activities if a.activity_type != ActivityType.HOME
+        ]
+        return len(non_home_activities) >= 2
+
     def available_modes(self) -> list[Mode]:
         modes: list[Mode] = [Mode.WALK, Mode.BUS, Mode.METRO, Mode.AUTO]
         if self.has_bike:

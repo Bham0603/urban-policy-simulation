@@ -19,3 +19,4 @@ class Occupation(str, Enum):
     STALL_OWNER = "stall_owner"
     STORE_MANAGER = "store_manager"
     STORE_STAFF = "store_staff"
+    UNEMPLOYED = "unemployed"

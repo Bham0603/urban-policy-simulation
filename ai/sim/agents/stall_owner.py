@@ -15,6 +15,11 @@ from enum import Enum
 
 import numpy as np
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sim.agents.supplier import WholesaleSupplier
+
 from sim.agents.modes import Occupation
 from sim.agents.retail_memory import RetailMemory, SalesOutcome
 from sim.agents.schedule import ActivitySchedule, ActivityType, Activity
@@ -62,6 +67,8 @@ class StallOwner:
     occupation: Occupation = Occupation.STALL_OWNER
     disruption_probability: float = 0.05
     is_disrupted_today: bool = False
+    cash_balance: float = 1000.0
+    is_bankrupt: bool = False
 
     # ------------------------------------------------------------------ #
     # Location logic
@@ -119,11 +126,42 @@ class StallOwner:
 
     def decay_inventory(self) -> None:
         """Reduce inventory by the stall-specific decay rate each tick."""
+        if self.is_bankrupt:
+            return
         self.inventory = max(0.0, self.inventory - self.inventory_decay_rate)
 
     def restock(self, amount: float = 1.0) -> None:
         """Restock inventory to a given level (default: full)."""
         self.inventory = min(1.0, amount)
+
+    def pay_fine(self, amount: float) -> None:
+        """Deduct fine cash, and trigger bankruptcy if out of money."""
+        self.cash_balance = max(0.0, self.cash_balance - amount)
+        if self.cash_balance <= 0.0:
+            self.is_bankrupt = True
+            self.occupation = Occupation.UNEMPLOYED
+
+    def restock_from_supplier(self, supplier: WholesaleSupplier, rain_intensity: float = 0.0) -> float:
+        """Commute to supplier and purchase stock.
+
+        Returns:
+            The travel time (restocking duration) in minutes.
+            Rain level does not change pricing, but increases restocking time by 100%.
+        """
+        if self.is_bankrupt:
+            return 0.0
+
+        base_time = 30.0
+        if rain_intensity > 0.4:
+            travel_time = base_time * 2.0  # 100% time increase under rain
+        else:
+            travel_time = base_time
+
+        cost, qty = supplier.sell_stock(self.cash_balance, quantity=(1.0 - self.inventory))
+        self.cash_balance = max(0.0, self.cash_balance - cost)
+        self.inventory = min(1.0, self.inventory + qty)
+
+        return travel_time
 
     # ------------------------------------------------------------------ #
     # Revenue helpers

@@ -12,6 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from sim.agents.memory import AgentMemory
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sim.agents.supplier import WholesaleSupplier
+
 from sim.agents.modes import Occupation
 from sim.agents.retail_memory import RetailMemory
 from sim.agents.schedule import Activity, ActivitySchedule, ActivityType
@@ -64,6 +69,7 @@ class StoreManager:
     inventory: float = 1.0
     retail_memory: RetailMemory = field(default_factory=RetailMemory)
     occupation: Occupation = Occupation.STORE_MANAGER
+    cash_balance: float = 5000.0
 
     # ------------------------------------------------------------------ #
     # Shift assignment
@@ -115,6 +121,24 @@ class StoreManager:
             self.inventory = 1.0
             return True
         return False
+
+    def restock_from_supplier(self, supplier: WholesaleSupplier, rain_intensity: float = 0.0) -> float:
+        """Purchase restocking stock from WholesaleSupplier.
+
+        Returns the restocking travel time duration in minutes.
+        Rain level does not change the price, but doubles travel time.
+        """
+        base_time = 45.0  # stores have larger inventory loads than stalls
+        if rain_intensity > 0.4:
+            travel_time = base_time * 2.0  # 100% time increase under rain
+        else:
+            travel_time = base_time
+
+        cost, qty = supplier.sell_stock(self.cash_balance, quantity=(1.0 - self.inventory))
+        self.cash_balance = max(0.0, self.cash_balance - cost)
+        self.inventory = min(1.0, self.inventory + qty)
+
+        return travel_time
 
     # ------------------------------------------------------------------ #
     # Pricing
