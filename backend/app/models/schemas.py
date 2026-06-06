@@ -58,6 +58,20 @@ class ScenarioConfig(BaseModel):
     tick_minutes: int = Field(default=5, description="Simulated minutes per tick.")
     # Free-form initial policy/environment knobs (validated by the sim layer, not here).
     params: dict[str, float] = Field(default_factory=dict)
+    # --- Real data mode (Phase 1) ---
+    use_real_data: bool = Field(
+        default=False,
+        description="If True, load real OSM road network instead of synthetic grid.",
+    )
+    network_paths: dict[str, str] = Field(
+        default_factory=dict,
+        description="Paths to data files: 'graphml', 'metro_json', 'bus_json'.",
+    )
+    population_path: str | None = Field(
+        default=None,
+        description="Path to synthetic_population.parquet for pre-generated agents.",
+    )
+
 
 
 class ScenarioSummary(BaseModel):
