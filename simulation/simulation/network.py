@@ -32,20 +32,20 @@ CAR_FREE_FLOW_SPEED = 11.0  # ~40 km/h
 # Capacity reflects PCU (Passenger Car Units) per lane per hour, scaled to
 # simulation tick granularity.  Values calibrated for Indian mixed-traffic.
 _HIGHWAY_CAPACITY: dict[str, tuple[float, float]] = {
-    "motorway": (2000.0, 22.0),       # ~80 km/h
-    "motorway_link": (1500.0, 16.0),   # ~58 km/h
-    "trunk": (1500.0, 16.0),           # ~58 km/h
-    "trunk_link": (1200.0, 14.0),      # ~50 km/h
-    "primary": (1200.0, 14.0),         # ~50 km/h
-    "primary_link": (1000.0, 12.0),    # ~43 km/h
-    "secondary": (800.0, 11.0),        # ~40 km/h
-    "secondary_link": (600.0, 10.0),   # ~36 km/h
-    "tertiary": (600.0, 10.0),         # ~36 km/h
-    "tertiary_link": (500.0, 9.0),     # ~32 km/h
-    "residential": (300.0, 8.0),       # ~29 km/h
-    "living_street": (200.0, 5.5),     # ~20 km/h
-    "unclassified": (400.0, 8.0),      # ~29 km/h
-    "busway": (500.0, 9.0),            # ~32 km/h
+    "motorway": (2000.0, 22.0),  # ~80 km/h
+    "motorway_link": (1500.0, 16.0),  # ~58 km/h
+    "trunk": (1500.0, 16.0),  # ~58 km/h
+    "trunk_link": (1200.0, 14.0),  # ~50 km/h
+    "primary": (1200.0, 14.0),  # ~50 km/h
+    "primary_link": (1000.0, 12.0),  # ~43 km/h
+    "secondary": (800.0, 11.0),  # ~40 km/h
+    "secondary_link": (600.0, 10.0),  # ~36 km/h
+    "tertiary": (600.0, 10.0),  # ~36 km/h
+    "tertiary_link": (500.0, 9.0),  # ~32 km/h
+    "residential": (300.0, 8.0),  # ~29 km/h
+    "living_street": (200.0, 5.5),  # ~20 km/h
+    "unclassified": (400.0, 8.0),  # ~29 km/h
+    "busway": (500.0, 9.0),  # ~32 km/h
 }
 _DEFAULT_CAPACITY = (300.0, CAR_FREE_FLOW_SPEED)
 
@@ -341,9 +341,7 @@ class MultiModalNetwork:
 
             snapped_nodes: list[str] = []
             for stop in stops:
-                nearest = self.get_nearest_node(
-                    float(stop["lat"]), float(stop["lon"])
-                )
+                nearest = self.get_nearest_node(float(stop["lat"]), float(stop["lon"]))
                 if nearest:
                     self.g.nodes[nearest]["bus_stop"] = True
                     snapped_nodes.append(nearest)
@@ -355,9 +353,7 @@ class MultiModalNetwork:
                     continue
 
                 try:
-                    path = nx.shortest_path(
-                        self.g, n1, n2, weight="length"
-                    )
+                    path = nx.shortest_path(self.g, n1, n2, weight="length")
                     for j in range(len(path) - 1):
                         u, v = path[j], path[j + 1]
                         if self.g.has_edge(u, v):

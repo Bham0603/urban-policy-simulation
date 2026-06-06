@@ -6,7 +6,6 @@ overlay metro/bus transit, and run a full simulation cycle.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -41,8 +40,7 @@ class TestOSMNetworkLoading:
         """Verify nodes have required attributes (type, lat, lon)."""
         net = MultiModalNetwork.load_from_osm(str(_GRAPHML))
         intersection_nodes = [
-            n for n, d in net.g.nodes(data=True)
-            if d.get("type") == "intersection"
+            n for n, d in net.g.nodes(data=True) if d.get("type") == "intersection"
         ]
         assert len(intersection_nodes) > 1000
 
@@ -57,8 +55,7 @@ class TestOSMNetworkLoading:
         """Verify edges have required attributes for BPR model."""
         net = MultiModalNetwork.load_from_osm(str(_GRAPHML))
         road_edges = [
-            (u, v, d) for u, v, d in net.g.edges(data=True)
-            if d.get("type") == "road"
+            (u, v, d) for u, v, d in net.g.edges(data=True) if d.get("type") == "road"
         ]
         assert len(road_edges) > 3000
 
@@ -172,8 +169,7 @@ class TestMetroOverlay:
         )
 
         station_nodes = [
-            n for n, d in net.g.nodes(data=True)
-            if d.get("type") == "metro_station"
+            n for n, d in net.g.nodes(data=True) if d.get("type") == "metro_station"
         ]
         # We only have a 5-station stub in JSON (yielding 6 metro nodes since Rajiv Chowk is an interchange)
         assert len(station_nodes) >= 5
@@ -185,8 +181,7 @@ class TestMetroOverlay:
         )
 
         transfer_edges = [
-            (u, v) for u, v, d in net.g.edges(data=True)
-            if d.get("type") == "transfer"
+            (u, v) for u, v, d in net.g.edges(data=True) if d.get("type") == "transfer"
         ]
         assert len(transfer_edges) >= 10  # 5 stations * 2 directions
 
@@ -197,8 +192,7 @@ class TestMetroOverlay:
         )
 
         metro_edges = [
-            (u, v, d) for u, v, d in net.g.edges(data=True)
-            if d.get("type") == "metro"
+            (u, v, d) for u, v, d in net.g.edges(data=True) if d.get("type") == "metro"
         ]
         # 2 segments per line × 2 lines × 2 directions = 8
         assert len(metro_edges) >= 8
@@ -237,7 +231,8 @@ class TestBusOverlay:
         )
 
         bus_edges = [
-            (u, v, d) for u, v, d in net.g.edges(data=True)
+            (u, v, d)
+            for u, v, d in net.g.edges(data=True)
             if d.get("bus_route") is not None
         ]
         assert len(bus_edges) > 0
@@ -251,8 +246,7 @@ class TestBusOverlay:
         )
 
         bus_stop_nodes = [
-            n for n, d in net.g.nodes(data=True)
-            if d.get("bus_stop") is True
+            n for n, d in net.g.nodes(data=True) if d.get("bus_stop") is True
         ]
         assert len(bus_stop_nodes) > 5
 

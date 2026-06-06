@@ -10,7 +10,7 @@ import random
 import mesa
 import numpy as np
 
-from simulation.network import MultiModalNetwork, CITY_LAT, CITY_LON
+from simulation.network import MultiModalNetwork
 from simulation.agents import (
     CitizenAgent,
     Occupation,
@@ -99,7 +99,9 @@ class UrbanModel(mesa.Model):
         self.reset_random_system(config.seed)
 
         # 1. Physical spatial and multi-modal network
-        if getattr(config, "use_real_data", False) and config.network_paths.get("graphml"):
+        if getattr(config, "use_real_data", False) and config.network_paths.get(
+            "graphml"
+        ):
             self.network = MultiModalNetwork.load_from_osm(
                 graphml_path=config.network_paths["graphml"],
                 metro_json_path=config.network_paths.get("metro_json"),
@@ -650,4 +652,3 @@ class MesaSimEngine:
                 )
 
         return cells
-
