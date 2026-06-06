@@ -43568,7 +43568,7 @@
     <edge source="5792664481" target="267259274" id="0">
       <data key="d9">[447141138, 611866597, 24584390]</data>
       <data key="d10">tertiary</data>
-      <data key="d11">['Imtiaz Khan Marg', 'Gurudwara Rakabganj Road']</data>
+      <data key="d11">['Gurudwara Rakabganj Road', 'Imtiaz Khan Marg']</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
       <data key="d14">436.55805649405795</data>
@@ -45231,7 +45231,7 @@
     <edge source="280741115" target="1869899454" id="0">
       <data key="d9">[176466568, 608970937]</data>
       <data key="d10">secondary</data>
-      <data key="d11">['Shanker Road', 'Vande Mataram Marg']</data>
+      <data key="d11">['Vande Mataram Marg', 'Shanker Road']</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
       <data key="d14">629.9365505646356</data>
@@ -47144,7 +47144,7 @@
     <edge source="12444158741" target="11050821520" id="0">
       <data key="d9">[112102217, 1345105351]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Prithviraj Lane', 'Amrita Shergil Marg']</data>
+      <data key="d11">['Amrita Shergil Marg', 'Prithviraj Lane']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">79.58201930857251</data>
@@ -49058,7 +49058,7 @@
     <edge source="395135138" target="458640640" id="0">
       <data key="d9">[289747210, 38699587]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Tagore Road', 'Turkman Road']</data>
+      <data key="d11">['Turkman Road', 'Tagore Road']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">696.9348724422669</data>
@@ -49103,7 +49103,7 @@
     <edge source="458640640" target="395135138" id="0">
       <data key="d9">[289747210, 38699587]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Tagore Road', 'Turkman Road']</data>
+      <data key="d11">['Turkman Road', 'Tagore Road']</data>
       <data key="d12">False</data>
       <data key="d13">False</data>
       <data key="d14">696.9348724422669</data>
@@ -49790,7 +49790,7 @@
     <edge source="9873780773" target="9873780774" id="0">
       <data key="d9">[714986189, 38235141]</data>
       <data key="d10">secondary</data>
-      <data key="d11">['Qutab Road', 'Babu Ram Solanki Marg']</data>
+      <data key="d11">['Babu Ram Solanki Marg', 'Qutab Road']</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
       <data key="d14">57.7319423700186</data>
@@ -60717,7 +60717,7 @@
     </edge>
     <edge source="616566319" target="9824925361" id="0">
       <data key="d9">[48533153, 48533132]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">[False, True]</data>
       <data key="d14">134.5694502605886</data>
@@ -60787,7 +60787,7 @@
     </edge>
     <edge source="9824925361" target="616566319" id="0">
       <data key="d9">[48533153, 48533132]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">[False, True]</data>
       <data key="d14">134.5694502605886</data>
@@ -61392,7 +61392,7 @@
     </edge>
     <edge source="616567671" target="9824925352" id="0">
       <data key="d9">[48535261, 1186764831]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">False</data>
       <data key="d14">54.241047908452245</data>
@@ -61536,7 +61536,7 @@
     </edge>
     <edge source="9824925352" target="616567671" id="0">
       <data key="d9">[48535261, 1186764831]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">54.241047908452245</data>
@@ -61633,7 +61633,7 @@
     </edge>
     <edge source="616567680" target="9824925350" id="0">
       <data key="d9">[48533139, 48534972, 1186764830]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d11">S1</data>
       <data key="d12">False</data>
       <data key="d13">[False, True]</data>
@@ -61643,7 +61643,7 @@
     </edge>
     <edge source="9824925350" target="616567680" id="0">
       <data key="d9">[48533139, 48534972, 1186764830]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d11">S1</data>
       <data key="d12">False</data>
       <data key="d13">[False, True]</data>
@@ -62716,7 +62716,7 @@
       <data key="d14">929.7441937293406</data>
       <data key="d15">LINESTRING (719631.5554219005 3169306.7651310978, 719641.7470785524 3169331.791835325, 719647.4763083004 3169354.3176636673, 719652.3763271228 3169373.601560609, 719655.7467475235 3169426.3730027154, 719656.4833552086 3169481.877789994, 719655.6932685404 3169557.1886999034, 719655.2903511969 3169580.6968670012, 719655.8067071019 3169593.811531546, 719658.8139951817 3169606.5849880488, 719664.2034157484 3169618.5606218386, 719671.7677652579 3169629.3132301075, 719681.2407580669 3169638.4386736117, 719692.2859981172 3169645.6201912058, 719704.4880344393 3169650.583882431, 719717.419556341 3169653.166493285, 719919.6353748362 3169654.6213989607, 720188.6922035669 3169660.055918087, 720221.2860686842 3169658.9296786785, 720264.6576382493 3169656.3325952976)</data>
       <data key="d16">4</data>
-      <data key="d20">['60', '70']</data>
+      <data key="d20">['70', '60']</data>
       <data key="d23">yes</data>
     </edge>
     <edge source="1395838315" target="838495877" id="0">
@@ -71031,7 +71031,7 @@
     <edge source="939086513" target="939086478" id="0">
       <data key="d9">[1134215441, 80499782]</data>
       <data key="d10">secondary</data>
-      <data key="d11">['Bahadur Shah Zafar Marg', 'Tilak Road']</data>
+      <data key="d11">['Tilak Road', 'Bahadur Shah Zafar Marg']</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
       <data key="d14">171.03796508561686</data>
@@ -76712,7 +76712,7 @@
     </edge>
     <edge source="6743318632" target="10598455899" id="0">
       <data key="d9">[1136934125, 1204891662, 1204891663]</data>
-      <data key="d10">['tertiary', 'unclassified']</data>
+      <data key="d10">['unclassified', 'tertiary']</data>
       <data key="d11">Saraswati Marg</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
@@ -92572,7 +92572,7 @@
     <edge source="9786433663" target="1588306401" id="0">
       <data key="d9">[1420918096, 145411842]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Gali Kucha Sharif Beg', 'Gali Leshwan']</data>
+      <data key="d11">['Gali Leshwan', 'Gali Kucha Sharif Beg']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">105.83714713004949</data>
@@ -92774,7 +92774,7 @@
     <edge source="1588306401" target="9786433663" id="0">
       <data key="d9">[1420918096, 145411842]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Gali Kucha Sharif Beg', 'Gali Leshwan']</data>
+      <data key="d11">['Gali Leshwan', 'Gali Kucha Sharif Beg']</data>
       <data key="d12">False</data>
       <data key="d13">False</data>
       <data key="d14">105.83714713004949</data>
@@ -92807,7 +92807,7 @@
     <edge source="7084322351" target="7469479264" id="0">
       <data key="d9">[798632018, 1156956443]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Gali Kucha Sharif Beg', 'Gali Beri Wali']</data>
+      <data key="d11">['Gali Beri Wali', 'Gali Kucha Sharif Beg']</data>
       <data key="d12">False</data>
       <data key="d13">False</data>
       <data key="d14">151.0781285794148</data>
@@ -93070,7 +93070,7 @@
     <edge source="7469479264" target="7084322351" id="0">
       <data key="d9">[798632018, 1156956443]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Gali Kucha Sharif Beg', 'Gali Beri Wali']</data>
+      <data key="d11">['Gali Beri Wali', 'Gali Kucha Sharif Beg']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">151.0781285794148</data>
@@ -100337,7 +100337,7 @@
     <edge source="1812141915" target="1812141921" id="0">
       <data key="d9">[1430789552, 170062830]</data>
       <data key="d10">residential</data>
-      <data key="d11">['Punja Sharif Road', 'Tilak Road']</data>
+      <data key="d11">['Tilak Road', 'Punja Sharif Road']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">243.4421490302282</data>
@@ -113726,7 +113726,7 @@
       <data key="d13">False</data>
       <data key="d14">159.4679833559821</data>
       <data key="d15">LINESTRING (716287.1951741228 3167029.767137703, 716286.398317006 3167009.907023169, 716284.3639331374 3166956.985353171, 716282.9158117896 3166919.4408368226, 716282.0328042567 3166898.947185922, 716281.8836497454 3166895.3744777986, 716284.1642494266 3166884.7400743105, 716286.7676754304 3166878.86787916, 716290.2786745437 3166872.5911736893)</data>
-      <data key="d16">['4', '6']</data>
+      <data key="d16">['6', '4']</data>
     </edge>
     <edge source="3744432460" target="943875805" id="0">
       <data key="d9">[37222900, 1290450966]</data>
@@ -121614,7 +121614,7 @@
     </edge>
     <edge source="11843067186" target="9181751818" id="0">
       <data key="d9">[1429564104, 77885913]</data>
-      <data key="d10">['primary_link', 'primary']</data>
+      <data key="d10">['primary', 'primary_link']</data>
       <data key="d11">New Rohtak Road</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
@@ -128681,7 +128681,7 @@
       <data key="d13">False</data>
       <data key="d14">267.18563568915556</data>
       <data key="d15">LINESTRING (718203.3431186611 3168503.63649896, 718200.784994167 3168491.3265423137, 718200.3527765304 3168476.229103299, 718196.4116658545 3168372.425819681, 718193.5746788366 3168297.5025503747, 718192.0193074648 3168256.6291221916, 718191.3061673755 3168237.712528947)</data>
-      <data key="d16">['1', '2']</data>
+      <data key="d16">['2', '1']</data>
     </edge>
     <edge source="6153253285" target="6153253286" id="0">
       <data key="d9">656933868</data>
@@ -139768,7 +139768,7 @@
     </edge>
     <edge source="12143593915" target="6726562307" id="0">
       <data key="d9">[1311938968, 1311938969]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">False</data>
       <data key="d14">28.06256905121701</data>
@@ -145523,7 +145523,7 @@
     <edge source="6965585184" target="6720350030" id="0">
       <data key="d9">[714986188, 714986189]</data>
       <data key="d10">secondary</data>
-      <data key="d11">['Babu Ram Solanki Marg', 'Chelmsford Road']</data>
+      <data key="d11">['Chelmsford Road', 'Babu Ram Solanki Marg']</data>
       <data key="d12">True</data>
       <data key="d13">False</data>
       <data key="d14">936.8156983995817</data>
@@ -146503,7 +146503,7 @@
     </edge>
     <edge source="6726562307" target="12143593915" id="0">
       <data key="d9">[1311938968, 1311938969]</data>
-      <data key="d10">['residential', 'living_street']</data>
+      <data key="d10">['living_street', 'residential']</data>
       <data key="d12">False</data>
       <data key="d13">True</data>
       <data key="d14">28.06256905121701</data>
@@ -174834,7 +174834,7 @@
       <data key="d13">True</data>
       <data key="d14">17.32738649221391</data>
     </edge>
-    <data key="d0">2026-06-06 00:35:54</data>
+    <data key="d0">2026-06-06 11:44:20</data>
     <data key="d1">OSMnx 2.1.0</data>
     <data key="d2">EPSG:32643</data>
     <data key="d3">True</data>
