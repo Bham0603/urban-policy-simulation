@@ -1,17 +1,25 @@
 """Transportation & multi-modal network graph.
 
 Represents roads, buses, and metro lines with routing and congestion capabilities.
+
+Supports two construction modes:
+  1. Synthetic grid (default __init__) — 10×10 intersection grid for dev/testing
+  2. Real OSM data (load_from_osm classmethod) — loads GraphML + metro/bus JSON
 """
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import TypedDict
+
 import networkx as nx
 
-# Central coordinates for Bengaluru-ish region
-CITY_LAT = 12.9716
-CITY_LON = 77.5946
+# Central coordinates — Rajiv Chowk Metro Station, New Delhi
+# Study area: ~3–5 km radius around this point
+CITY_LAT = 28.6328
+CITY_LON = 77.2197
 
 # Default travel speed constants (meters per second)
 WALK_SPEED = 1.4  # ~5 km/h
@@ -19,6 +27,27 @@ BIKE_SPEED = 4.2  # ~15 km/h
 BUS_BASE_SPEED = 6.0  # ~22 km/h
 METRO_SPEED = 12.0  # ~43 km/h
 CAR_FREE_FLOW_SPEED = 11.0  # ~40 km/h
+
+# Highway classification → (capacity vehicles/tick, free_flow_speed m/s)
+# Capacity reflects PCU (Passenger Car Units) per lane per hour, scaled to
+# simulation tick granularity.  Values calibrated for Indian mixed-traffic.
+_HIGHWAY_CAPACITY: dict[str, tuple[float, float]] = {
+    "motorway": (2000.0, 22.0),  # ~80 km/h
+    "motorway_link": (1500.0, 16.0),  # ~58 km/h
+    "trunk": (1500.0, 16.0),  # ~58 km/h
+    "trunk_link": (1200.0, 14.0),  # ~50 km/h
+    "primary": (1200.0, 14.0),  # ~50 km/h
+    "primary_link": (1000.0, 12.0),  # ~43 km/h
+    "secondary": (800.0, 11.0),  # ~40 km/h
+    "secondary_link": (600.0, 10.0),  # ~36 km/h
+    "tertiary": (600.0, 10.0),  # ~36 km/h
+    "tertiary_link": (500.0, 9.0),  # ~32 km/h
+    "residential": (300.0, 8.0),  # ~29 km/h
+    "living_street": (200.0, 5.5),  # ~20 km/h
+    "unclassified": (400.0, 8.0),  # ~29 km/h
+    "busway": (500.0, 9.0),  # ~32 km/h
+}
+_DEFAULT_CAPACITY = (300.0, CAR_FREE_FLOW_SPEED)
 
 
 class SegmentInfo(TypedDict):
@@ -37,15 +66,16 @@ class MultiModalNetwork:
     updating dynamic travel times using a BPR congestion model.
     """
 
-    def __init__(self, size: int = 8, spacing: float = 0.01) -> None:
-        """Initialize the synthetic multi-modal Bengaluru grid.
+    def __init__(self, size: int = 10, spacing: float = 0.005) -> None:
+        """Initialize the synthetic multi-modal Delhi (Rajiv Chowk) grid.
 
-        size: grid size (e.g. 8x8 intersections)
-        spacing: coordinate distance between adjacent grid intersections (~1.1 km)
+        size: grid size (e.g. 10x10 intersections covering ~5 km)
+        spacing: coordinate distance between adjacent grid intersections (~555 m)
         """
         self.g = nx.DiGraph()
         self.size = size
         self.spacing = spacing
+        self._is_real_data = False
 
         # High-performance routing cache: (source, target, mode) -> path
         self._routing_cache: dict[tuple[str, str, str], list[str] | None] = {}
@@ -56,13 +86,311 @@ class MultiModalNetwork:
         self._fuel_price_delta_paise: int = 0
         self._weather_rain_intensity: float = 0.0
 
+        # Bounding box (computed dynamically for real data)
+        self._lat_min: float = CITY_LAT - (size / 2) * spacing
+        self._lat_max: float = CITY_LAT + (size / 2) * spacing
+        self._lon_min: float = CITY_LON - (size / 2) * spacing
+        self._lon_max: float = CITY_LON + (size / 2) * spacing
+
         # Build synthetic road intersections (Grid nodes)
         self._build_road_nodes()
         self._build_road_links()
 
-        # Build Transit lines (Metro Purple and Green, major Bus loops)
+        # Build Transit lines (Delhi Metro Yellow and Blue lines, major bus routes)
         self._build_metro_system()
         self._build_bus_system()
+
+    # ------------------------------------------------------------------
+    # Class method: construct from real OSM data
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def load_from_osm(
+        cls,
+        graphml_path: str | Path,
+        metro_json_path: str | Path | None = None,
+        bus_json_path: str | Path | None = None,
+    ) -> "MultiModalNetwork":
+        """Construct a MultiModalNetwork from real OSM data files.
+
+        Parameters:
+            graphml_path:   Path to the OSM road network GraphML file
+            metro_json_path: Path to metro_network.json (optional)
+            bus_json_path:   Path to bus_routes.json (optional)
+
+        Returns:
+            A fully wired MultiModalNetwork backed by real road geometry.
+        """
+        import osmnx as ox
+
+        graphml_path = Path(graphml_path)
+        if not graphml_path.exists():
+            raise FileNotFoundError(f"GraphML not found: {graphml_path}")
+
+        # Load the OSM graph (MultiDiGraph)
+        osm_graph = ox.load_graphml(graphml_path)
+
+        # Create instance via __new__ to skip synthetic __init__
+        net = cls.__new__(cls)
+        net.g = nx.DiGraph()
+        net.size = 0
+        net.spacing = 0.0
+        net._is_real_data = True
+        net._routing_cache = {}
+        net._disabled_metro_lines = set()
+        net._bus_capacity_multiplier = 1.0
+        net._fuel_price_delta_paise = 0
+        net._weather_rain_intensity = 0.0
+
+        # --- Convert OSM MultiDiGraph → our internal DiGraph ---
+        net._load_osm_road_graph(osm_graph)
+
+        # --- Compute bounding box from real node coordinates ---
+        lats = [d["lat"] for _, d in net.g.nodes(data=True) if "lat" in d]
+        lons = [d["lon"] for _, d in net.g.nodes(data=True) if "lon" in d]
+        if lats and lons:
+            net._lat_min = min(lats)
+            net._lat_max = max(lats)
+            net._lon_min = min(lons)
+            net._lon_max = max(lons)
+        else:
+            net._lat_min = CITY_LAT - 0.04
+            net._lat_max = CITY_LAT + 0.04
+            net._lon_min = CITY_LON - 0.04
+            net._lon_max = CITY_LON + 0.04
+
+        # --- Overlay transit if data files provided ---
+        if metro_json_path:
+            net._load_metro_from_json(Path(metro_json_path))
+
+        if bus_json_path:
+            net._load_bus_from_json(Path(bus_json_path))
+
+        return net
+
+    def _load_osm_road_graph(self, osm_graph: nx.MultiDiGraph) -> None:
+        """Convert an OSMnx MultiDiGraph into our internal DiGraph.
+
+        - Node IDs become strings (str(osmid)) for consistency
+        - Each node gets type="intersection", lat, lon
+        - Each edge gets type="road" with capacity inferred from highway tag
+        - For multi-edges, we keep only the shortest one per (u, v) pair
+        """
+        # Add nodes
+        for node_id, data in osm_graph.nodes(data=True):
+            str_id = str(node_id)
+            lat = float(data.get("y", 0.0))
+            lon = float(data.get("x", 0.0))
+            self.g.add_node(
+                str_id,
+                type="intersection",
+                lat=lat,
+                lon=lon,
+                street_count=int(data.get("street_count", 0)),
+            )
+
+        # Add edges — for MultiDiGraph, keep shortest edge per (u, v) pair
+        best_edges: dict[tuple[str, str], dict] = {}
+
+        for u, v, key, data in osm_graph.edges(data=True, keys=True):
+            str_u = str(u)
+            str_v = str(v)
+            pair = (str_u, str_v)
+
+            length = float(data.get("length", 100.0))
+
+            # Only keep shortest edge for each (u, v) pair
+            if pair in best_edges and best_edges[pair]["length"] <= length:
+                continue
+
+            # Infer capacity from highway classification
+            highway = data.get("highway", "residential")
+            if isinstance(highway, list):
+                highway = highway[0] if highway else "residential"
+            highway = str(highway)
+
+            # Strip list notation if serialised as string
+            if highway.startswith("["):
+                highway = highway.strip("[]' ").split("'")[0].strip(", '")
+
+            capacity, free_flow_speed = _HIGHWAY_CAPACITY.get(
+                highway, _DEFAULT_CAPACITY
+            )
+
+            best_edges[pair] = {
+                "type": "road",
+                "length": length,
+                "capacity": capacity,
+                "flow": 0,
+                "free_flow_speed": free_flow_speed,
+                "metro_line": None,
+                "bus_route": None,
+                "highway": highway,
+            }
+
+        # Add the winning edges
+        for (str_u, str_v), attrs in best_edges.items():
+            self.g.add_edge(str_u, str_v, **attrs)
+
+    def _load_metro_from_json(self, json_path: Path) -> None:
+        """Load metro lines from a JSON file and overlay onto the road graph.
+
+        For each metro line:
+        1. Create a metro station node for each station
+        2. Snap station to the nearest road intersection node
+        3. Add transfer (walking) edges between station and road node
+        4. Wire metro track edges between consecutive stations
+        """
+        with open(json_path, "r", encoding="utf-8") as f:
+            metro_data = json.load(f)
+
+        for line_info in metro_data.get("lines", []):
+            line_name = line_info["name"].lower().replace(" line", "").strip()
+            stations = line_info.get("stations", [])
+            segments = line_info.get("segments", [])
+
+            # Build station name → info mapping for segment lookup
+            station_map: dict[str, dict] = {}
+            station_node_ids: list[str] = []
+
+            for station in stations:
+                st_name = station["name"]
+                st_lat = float(station["lat"])
+                st_lon = float(station["lon"])
+
+                station_id = f"metro_{line_name}_{st_name.lower().replace(' ', '_')}"
+                station_map[st_name] = {
+                    "id": station_id,
+                    "lat": st_lat,
+                    "lon": st_lon,
+                }
+                station_node_ids.append(station_id)
+
+                # Add metro station node
+                self.g.add_node(
+                    station_id,
+                    type="metro_station",
+                    line=line_name,
+                    lat=st_lat,
+                    lon=st_lon,
+                )
+
+                # Snap to nearest road node and add transfer edges
+                nearest = self.get_nearest_node(st_lat, st_lon)
+                if nearest:
+                    self.g.nodes[nearest]["metro_station"] = True
+
+                    # Bidirectional transfer (walking to/from platform)
+                    for src, dst in [(nearest, station_id), (station_id, nearest)]:
+                        self.g.add_edge(
+                            src,
+                            dst,
+                            type="transfer",
+                            length=80.0,  # ~80m walk to platform
+                            capacity=1e9,
+                            flow=0,
+                            free_flow_speed=WALK_SPEED,
+                            metro_line=None,
+                            bus_route=None,
+                        )
+
+            # Wire metro tracks using segment data
+            for seg in segments:
+                from_name = seg["from"]
+                to_name = seg["to"]
+
+                if from_name not in station_map or to_name not in station_map:
+                    continue
+
+                from_info = station_map[from_name]
+                to_info = station_map[to_name]
+                from_id = from_info["id"]
+                to_id = to_info["id"]
+
+                distance_m = float(seg.get("distance_km", 1.0)) * 1000.0
+
+                # Bidirectional metro tracks
+                for src, dst in [(from_id, to_id), (to_id, from_id)]:
+                    self.g.add_edge(
+                        src,
+                        dst,
+                        type="metro",
+                        line=line_name,
+                        length=distance_m,
+                        capacity=10000.0,
+                        flow=0,
+                        free_flow_speed=METRO_SPEED,
+                        metro_line=line_name,
+                        bus_route=None,
+                    )
+
+    def _load_bus_from_json(self, json_path: Path) -> None:
+        """Load bus routes from a JSON file and tag road edges.
+
+        For each route:
+        1. Snap each bus stop to the nearest road intersection
+        2. Tag road edges along the shortest path between consecutive stops
+           with the bus route ID
+        """
+        with open(json_path, "r", encoding="utf-8") as f:
+            bus_data = json.load(f)
+
+        for route_info in bus_data.get("routes", []):
+            route_id = route_info["id"]
+            stops = route_info.get("stops", [])
+
+            snapped_nodes: list[str] = []
+            for stop in stops:
+                nearest = self.get_nearest_node(float(stop["lat"]), float(stop["lon"]))
+                if nearest:
+                    self.g.nodes[nearest]["bus_stop"] = True
+                    snapped_nodes.append(nearest)
+
+            # Tag edges along the path between consecutive stops
+            for i in range(len(snapped_nodes) - 1):
+                n1, n2 = snapped_nodes[i], snapped_nodes[i + 1]
+                if n1 == n2:
+                    continue
+
+                try:
+                    path = nx.shortest_path(self.g, n1, n2, weight="length")
+                    for j in range(len(path) - 1):
+                        u, v = path[j], path[j + 1]
+                        if self.g.has_edge(u, v):
+                            edge = self.g.edges[u, v]
+                            if edge.get("type") == "road":
+                                edge["bus_route"] = route_id
+                        # Tag reverse direction too
+                        if self.g.has_edge(v, u):
+                            edge_rev = self.g.edges[v, u]
+                            if edge_rev.get("type") == "road":
+                                edge_rev["bus_route"] = route_id
+                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                    continue
+
+    # ------------------------------------------------------------------
+    # Bounding box accessors (used by engine for grid generation)
+    # ------------------------------------------------------------------
+
+    @property
+    def lat_min(self) -> float:
+        return self._lat_min
+
+    @property
+    def lat_max(self) -> float:
+        return self._lat_max
+
+    @property
+    def lon_min(self) -> float:
+        return self._lon_min
+
+    @property
+    def lon_max(self) -> float:
+        return self._lon_max
+
+    # ------------------------------------------------------------------
+    # Cache & property management (unchanged)
+    # ------------------------------------------------------------------
 
     def clear_routing_cache(self) -> None:
         """Clear the routing cache when network conditions or parameters change."""
@@ -107,13 +435,9 @@ class MultiModalNetwork:
             self._weather_rain_intensity = value
             self.clear_routing_cache()
 
-        # Build synthetic road intersections (Grid nodes)
-        self._build_road_nodes()
-        self._build_road_links()
-
-        # Build Transit lines (Metro Purple and Green, major Bus loops)
-        self._build_metro_system()
-        self._build_bus_system()
+    # ------------------------------------------------------------------
+    # Synthetic grid builders (kept as fallback)
+    # ------------------------------------------------------------------
 
     def _build_road_nodes(self) -> None:
         """Create road intersection nodes centered on the city."""
@@ -175,16 +499,21 @@ class MultiModalNetwork:
                     )
 
     def _build_metro_system(self) -> None:
-        """Create Purple and Green metro lines cutting through the grid."""
-        # Purple Line: Horizontal cut across the middle row
-        purple_r = self.size // 2
-        purple_nodes = [f"node_{purple_r}_{c}" for c in range(self.size)]
-        self._wire_metro_line("purple", purple_nodes)
+        """Create Delhi Metro Yellow and Blue lines cutting through the grid.
 
-        # Green Line: Vertical cut across the middle column
-        green_c = self.size // 2
-        green_nodes = [f"node_{r}_{green_c}" for r in range(self.size)]
-        self._wire_metro_line("green", green_nodes)
+        Yellow Line runs north-south through Rajiv Chowk (vertical cut).
+        Blue Line runs east-west through Rajiv Chowk (horizontal cut).
+        Both lines intersect at Rajiv Chowk station (center of grid).
+        """
+        # Yellow Line: Vertical (north-south) cut through the center column
+        yellow_c = self.size // 2
+        yellow_nodes = [f"node_{r}_{yellow_c}" for r in range(self.size)]
+        self._wire_metro_line("yellow", yellow_nodes)
+
+        # Blue Line: Horizontal (east-west) cut across the center row
+        blue_r = self.size // 2
+        blue_nodes = [f"node_{blue_r}_{c}" for c in range(self.size)]
+        self._wire_metro_line("blue", blue_nodes)
 
     def _wire_metro_line(self, line_name: str, nodes: list[str]) -> None:
         """Create dedicated metro station nodes, walk-to-transit transfer links, and metro tracks."""
@@ -255,34 +584,42 @@ class MultiModalNetwork:
                 )
 
     def _build_bus_system(self) -> None:
-        """Build major bus loop lines."""
-        # Bus loop around the inner square (e.g., ring road)
-        # For a size=8 grid, loop around index 2 and 5
-        bus_nodes = [
-            "node_2_2",
-            "node_2_3",
-            "node_2_4",
-            "node_2_5",
-            "node_3_5",
-            "node_4_5",
-            "node_5_5",
-            "node_5_4",
-            "node_5_3",
-            "node_5_2",
-            "node_4_2",
-            "node_3_2",
-            "node_2_2",
-        ]
+        """Build major DTC bus routes in the Connaught Place / Rajiv Chowk area."""
+        # Outer ring bus loop — represents routes circling the CP outer circle
+        # Dynamically compute indices based on grid size
+        inner = max(1, self.size // 4)
+        outer = min(self.size - 2, self.size - 1 - inner)
+
+        # Build a rectangular loop
+        bus_nodes = []
+        # Top edge (left to right)
+        for c in range(inner, outer + 1):
+            bus_nodes.append(f"node_{inner}_{c}")
+        # Right edge (top to bottom)
+        for r in range(inner + 1, outer + 1):
+            bus_nodes.append(f"node_{r}_{outer}")
+        # Bottom edge (right to left)
+        for c in range(outer - 1, inner - 1, -1):
+            bus_nodes.append(f"node_{outer}_{c}")
+        # Left edge (bottom to top, closing the loop)
+        for r in range(outer - 1, inner, -1):
+            bus_nodes.append(f"node_{r}_{inner}")
+        # Close the loop
+        bus_nodes.append(f"node_{inner}_{inner}")
 
         for i in range(len(bus_nodes) - 1):
             n1, n2 = bus_nodes[i], bus_nodes[i + 1]
             self.g.nodes[n1]["bus_stop"] = True
             self.g.nodes[n2]["bus_stop"] = True
 
-            # Add dynamic bus segment tag to existing road edges or new ones
+            # Tag existing road edges with bus route
             for src, dst in [(n1, n2), (n2, n1)]:
                 if self.g.has_edge(src, dst):
-                    self.g.edges[src, dst]["bus_route"] = "ring_road"
+                    self.g.edges[src, dst]["bus_route"] = "cp_outer_ring"
+
+    # ------------------------------------------------------------------
+    # Node lookup
+    # ------------------------------------------------------------------
 
     def get_nearest_node(self, lat: float, lon: float) -> str:
         """Find the nearest road intersection node to a given lat/lon."""
@@ -298,7 +635,27 @@ class MultiModalNetwork:
                     min_dist = dist
                     best_node = node_id
 
-        return best_node or "node_0_0"
+        if best_node is not None:
+            return best_node
+
+        # Absolute fallback — return first intersection node
+        for node_id, data in self.g.nodes(data=True):
+            if data.get("type") == "intersection":
+                return node_id
+
+        return "node_0_0"
+
+    def get_intersection_nodes(self) -> list[str]:
+        """Return a list of all road intersection node IDs."""
+        return [
+            node_id
+            for node_id, data in self.g.nodes(data=True)
+            if data.get("type") == "intersection"
+        ]
+
+    # ------------------------------------------------------------------
+    # BPR congestion model (unchanged)
+    # ------------------------------------------------------------------
 
     def compute_bpr_travel_time(self, u: str, v: str, edge_data: dict) -> float:
         """Compute travel time (seconds) on an edge using BPR congestion formula."""
@@ -345,6 +702,10 @@ class MultiModalNetwork:
             return t_zero
 
         return t_zero
+
+    # ------------------------------------------------------------------
+    # Routing (unchanged)
+    # ------------------------------------------------------------------
 
     def find_shortest_path(
         self, source: str, target: str, mode: str

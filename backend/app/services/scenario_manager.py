@@ -52,7 +52,7 @@ class ScenarioManager:
     # --- lifecycle -----------------------------------------------------------------------
     def create(self, config: ScenarioConfig) -> ScenarioSummary:
         summary = self._metadata.create(config)
-        self._engines[summary.id] = build_engine(self._settings.sim_engine, config)
+        self._engines[summary.id] = self._build_engine(config)
         self._state.ensure(summary.id)
         logger.info("Created %s (engine=%s)", summary.id, self._settings.sim_engine)
         return summary
@@ -84,7 +84,7 @@ class ScenarioManager:
         summary = self._require(scenario_id)
         self._cancel_task(scenario_id)
         # Rebuild the engine from the original config + seed → identical fresh run.
-        self._engines[scenario_id] = build_engine(self._settings.sim_engine, summary.config)
+        self._engines[scenario_id] = self._build_engine(summary.config)
         self._state.drop(scenario_id)
         self._state.ensure(scenario_id)
         self._metadata.update_tick(scenario_id, 0)
@@ -196,10 +196,16 @@ class ScenarioManager:
         if engine is None:
             # Lazily rebuild from metadata (e.g. after a process restart).
             summary = self._require(scenario_id)
-            engine = build_engine(self._settings.sim_engine, summary.config)
+            engine = self._build_engine(summary.config)
             self._engines[scenario_id] = engine
             self._state.ensure(scenario_id)
         return engine
+
+    def _build_engine(self, config: ScenarioConfig) -> SimEngine:
+        data_paths = (
+            self._settings.resolved_data_paths(config.city) if config.use_real_data else None
+        )
+        return build_engine(self._settings.sim_engine, config, data_paths)
 
     def _require(self, scenario_id: str) -> ScenarioSummary:
         summary = self._metadata.get(scenario_id)

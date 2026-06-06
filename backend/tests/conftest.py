@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+# Ensure simulation package is importable during backend tests
+sys.path.insert(0, str(Path(__file__).resolve().parents[1].parent / "simulation"))
 
 
 @pytest.fixture
@@ -15,6 +20,7 @@ def client(tmp_path) -> Iterator[TestClient]:
     os.environ["BACKEND_METADATA_DB_PATH"] = str(tmp_path / "meta.sqlite")
     os.environ["BACKEND_TICK_INTERVAL_SECONDS"] = "0.01"
     os.environ["BACKEND_SIM_ENGINE"] = "fake"
+    os.environ["BACKEND_ENVIRONMENT"] = "test"
 
     from app.config import get_settings
 
@@ -30,7 +36,7 @@ def client(tmp_path) -> Iterator[TestClient]:
 def make_scenario(client: TestClient, name: str = "scenario_a_monsoon") -> dict:
     resp = client.post(
         "/api/v1/scenarios",
-        json={"config": {"name": name, "city": "bengaluru", "population": 1000, "seed": 7}},
+        json={"config": {"name": name, "city": "delhi", "population": 1000, "seed": 7}},
     )
     assert resp.status_code == 201, resp.text
     return resp.json()
