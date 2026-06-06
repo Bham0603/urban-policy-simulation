@@ -85,9 +85,10 @@ class SimpleScheduler:
 class UrbanModel(mesa.Model):
     """Mesa model representing the city's transport ecosystem."""
 
-    def __init__(self, config: ScenarioConfig) -> None:
+    def __init__(self, config: ScenarioConfig, data_paths=None) -> None:
         super().__init__()
         self.config = config
+        self.data_paths = data_paths
         self.current_tick = 0
         self.sim_time_minutes = 0
         self.running = True
@@ -497,9 +498,9 @@ class MesaSimEngine:
     Wraps the Mesa UrbanModel with REST and WebSocket serializer mappings.
     """
 
-    def __init__(self, config: ScenarioConfig) -> None:
+    def __init__(self, config: ScenarioConfig, data_paths=None) -> None:
         self.config = config
-        self.model = UrbanModel(config)
+        self.model = UrbanModel(config, data_paths=data_paths)
         self._pending_events: list[Event] = []
 
     @property

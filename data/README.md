@@ -8,13 +8,13 @@
 ## Overview
 
 This module handles all data acquisition, cleaning, and transformation pipelines
-for the Urban Intelligence Platform. The primary focus area is a **3–5 km radius
+for the Urban Intelligence Platform. The primary focus area is a **4 km radius
 around Rajiv Chowk Metro Station** (28.6328° N, 77.2197° E) in central New Delhi.
 
 ## Folder Structure
 
-```
-SUB-04_Data_Engineering/
+```text
+data/
 ├── README.md                 ← You are here
 ├── requirements.txt          ← Python dependencies
 ├── venv/                     ← Python virtual environment (not committed)
@@ -24,20 +24,26 @@ SUB-04_Data_Engineering/
 │
 ├── processed_data/           ← Cleaned, analysis-ready outputs
 │   ├── network.graphml       ← OSM street network (GraphML)
-│   └── edges.parquet         ← OSM edge list (GeoParquet)
+│   ├── nodes.parquet         ← OSM node list (GeoParquet)
+│   ├── edges.parquet         ← OSM edge list (GeoParquet)
+│   └── weather_delhi.csv     ← Historical monsoon weather data
 │
 ├── validation_data/          ← Data for validation purposes
 │
+├── cache/                    ← OSMnx HTTP cache
+│
 └── pipelines/                ← Data acquisition & processing scripts
     ├── 1_download_osm_network.py
-    └── 2_fetch_census_demographics.py  (placeholder)
+    ├── 2_fetch_census_demographics.py  (placeholder)
+    └── 3_fetch_monsoon_weather.py
 ```
 
 ## Data Provenance
 
 | Dataset | Source | License | Status |
-|---------|--------|---------|--------|
+| ------- | ------ | ------- | ------ |
 | Street Network | [OpenStreetMap](https://www.openstreetmap.org/) via `osmnx` | ODbL 1.0 | ✅ Implemented |
+| Monsoon Weather | [Open-Meteo Historical API](https://open-meteo.com/) | CC BY 4.0 | ✅ Implemented |
 | Census Demographics | [Census of India 2011](https://censusindia.gov.in/) | Government Open Data | ⏳ Placeholder |
 
 ### OpenStreetMap Network
@@ -45,7 +51,17 @@ SUB-04_Data_Engineering/
 - **Query**: Point-based, 4 km radius around (28.6328, 77.2197) covering ~3–5 km study area
 - **Network type**: `drive` (drivable roads only)
 - **Cleaning**: Largest strongly-connected component retained
-- **Formats**: GraphML (for NetworkX), Parquet edge list (for pandas/geopandas)
+- **Projection**: Projected to local UTM zone for metric measurement accuracy
+- **Formats**: GraphML (for NetworkX), Parquet node + edge lists (for pandas/geopandas)
+- **Mixed-type handling**: Object/mixed columns are explicitly string-cast before Parquet serialization to prevent PyArrow data-type mismatch errors
+
+### Monsoon Weather Data
+
+- **Source**: Open-Meteo Historical Weather API
+- **Location**: New Delhi, India (Lat: 28.6328, Lon: 77.2197)
+- **Timeframe**: Monsoon season (June 1st to September 30th)
+- **Variables**: `rain_mm`, `max_temp_c`, `max_humidity_pct`
+- **Fallback**: Includes automated fallback data generation using realistic IMD historical baselines if the API call encounters network connectivity issues
 
 ### Census Demographics (Planned)
 
@@ -59,7 +75,7 @@ SUB-04_Data_Engineering/
 
 ```bash
 # Navigate to this directory
-cd SUB-04_Data_Engineering
+cd data
 
 # Create and activate the virtual environment
 python -m venv venv
@@ -81,10 +97,22 @@ python pipelines/1_download_osm_network.py
 ```
 
 **Expected output:**
+
 - `processed_data/network.graphml` — Full graph in GraphML format
+- `processed_data/nodes.parquet` — Node list as GeoParquet
 - `processed_data/edges.parquet` — Edge list as GeoParquet
 
-### 3. Census Demographics (Not Yet Implemented)
+### 3. Run the Monsoon Weather Pipeline
+
+```bash
+python pipelines/3_fetch_monsoon_weather.py
+```
+
+**Expected output:**
+
+- `processed_data/weather_delhi.csv` — 122 daily weather records
+
+### 4. Census Demographics (Not Yet Implemented)
 
 ```bash
 # python pipelines/2_fetch_census_demographics.py
@@ -94,16 +122,18 @@ python pipelines/1_download_osm_network.py
 ## Dependencies
 
 | Package | Purpose |
-|---------|---------|
-| `osmnx` | OpenStreetMap network download & analysis |
-| `geopandas` | Geospatial DataFrames & Parquet export |
-| `pandas` | Tabular data processing |
-| `shapely` | Geometric operations |
-| `networkx` | Graph data structures (bundled with osmnx) |
-| `pyarrow` | Parquet file I/O engine |
+| ------- | ------- |
+| `osmnx>=2.1.0` | OpenStreetMap network download & analysis |
+| `geopandas>=1.0.0` | Geospatial DataFrames & Parquet export |
+| `pandas>=2.2.0` | Tabular data processing |
+| `shapely>=2.0.0` | Geometric operations |
+| `networkx>=3.3` | Graph data structures (bundled with osmnx) |
+| `pyarrow>=15.0.0` | Parquet file I/O engine |
+| `requests>=2.31.0` | HTTP requests for weather API |
 
 ## Notes
 
 - The virtual environment (`venv/`) should **not** be committed to version control.
 - Raw data files in `raw_data/` should be treated as immutable once downloaded.
 - All processed outputs are reproducible by re-running the pipeline scripts.
+- UTF-8 encoding is enforced on Windows to prevent console charmap encoding crashes.
