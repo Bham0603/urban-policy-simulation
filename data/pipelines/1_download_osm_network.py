@@ -129,8 +129,8 @@ def main():
     # 2. Clean
     G = clean_graph(G)
 
-    # 3. Project to UTM
-    G = project_graph(G)
+    # 3. Project to UTM (Skipping so we retain WGS84 lat/lon)
+    # G = project_graph(G)
 
     # 4. Save GraphML
     save_graphml(G, GRAPHML_PATH)
