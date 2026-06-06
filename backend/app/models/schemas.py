@@ -56,13 +56,22 @@ class ScenarioConfig(BaseModel):
     population: int = Field(default=5_000, ge=1, le=200_000)
     seed: int = Field(default=42, description="Single RNG seed for the whole run.")
     tick_minutes: int = Field(default=5, description="Simulated minutes per tick.")
+    # Widened to match Event.payload so bool toggles (WFH) and named knobs (metro line) fit.
+    params: dict[str, float | int | str | bool] = Field(default_factory=dict)
+    # --- Real data mode (Phase 1) ---
     use_real_data: bool = Field(
         default=False,
         description="If true, the sim loads real OSM/transit/population data; "
         "else it uses the synthetic grid fallback.",
     )
-    # Widened to match Event.payload so bool toggles (WFH) and named knobs (metro line) fit.
-    params: dict[str, float | int | str | bool] = Field(default_factory=dict)
+    network_paths: dict[str, str] = Field(
+        default_factory=dict,
+        description="Paths to data files: 'graphml', 'metro_json', 'bus_json'.",
+    )
+    population_path: str | None = Field(
+        default=None,
+        description="Path to synthetic_population.parquet for pre-generated agents.",
+    )
 
 
 class ScenarioSummary(BaseModel):
