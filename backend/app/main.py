@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api.routes import events, health, metrics, scenarios, snapshots
 from app.config import get_settings
+from app.models.schemas import ScenarioConfig
 from app.services.scenario_manager import ScenarioManager
 from app.store.metadata import MetadataStore
 from app.store.state import StateStore
@@ -39,6 +40,38 @@ async def lifespan(app: FastAPI):
     app.state.state_store = state
     app.state.ws_manager = ws_manager
     app.state.scenario_manager = scenario_manager
+
+    # Auto-populate default scenarios if empty (allows frontend to connect immediately)
+    if settings.environment != "test":
+        try:
+            if not metadata.list():
+                scenario_manager.create(
+                    ScenarioConfig(
+                        name="scenario_a_monsoon",
+                        city="delhi",
+                        population=settings.default_population,
+                        seed=42,
+                    )
+                )
+                scenario_manager.create(
+                    ScenarioConfig(
+                        name="scenario_b_metro_shutdown",
+                        city="delhi",
+                        population=settings.default_population,
+                        seed=42,
+                    )
+                )
+                scenario_manager.create(
+                    ScenarioConfig(
+                        name="scenario_c_fuel_shock",
+                        city="delhi",
+                        population=settings.default_population,
+                        seed=42,
+                    )
+                )
+                logging.getLogger(__name__).info("Pre-populated default scenarios on startup")
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to pre-populate default scenarios: %s", e)
 
     logging.getLogger(__name__).info(
         "Backend up: engine=%s, tick=%.2fs", settings.sim_engine, settings.tick_interval_seconds
