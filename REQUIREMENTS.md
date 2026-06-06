@@ -56,7 +56,7 @@
 - **Schema I need:**
 ```
 agent_id          int64       unique
-home_node         str         real OSM node ID from nodes.parquet
+home_node         str         real OSM node ID from network.graphml
 work_node         str|null    real OSM node ID (null for non-workers/retired)
 age               int
 income_bracket    int (1-5)
@@ -232,7 +232,7 @@ python -c "import mesa; import networkx; print('simulation deps OK')"
 DATA ENGINEER (Person 4)
   │
   ├─ weather_delhi.csv ────► ME (monsoon scenario driver)
-  ├─ synthetic_population.parquet ► ME (engine._load_real_population)
+  ├─ synthetic_population.parquet ► ME (TODO: load pre-generated population file in UrbanModel)
   └─ validation CSVs ──────► RESEARCH (Person 7) ──► ME (calibration feedback)
 
 ME (Simulation Core)
