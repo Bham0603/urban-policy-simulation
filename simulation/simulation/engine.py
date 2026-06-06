@@ -10,7 +10,7 @@ import random
 import mesa
 import numpy as np
 
-from simulation.network import MultiModalNetwork, CITY_LAT, CITY_LON
+from simulation.network import MultiModalNetwork
 from simulation.agents import (
     CitizenAgent,
     Occupation,
@@ -85,9 +85,10 @@ class SimpleScheduler:
 class UrbanModel(mesa.Model):
     """Mesa model representing the city's transport ecosystem."""
 
-    def __init__(self, config: ScenarioConfig) -> None:
+    def __init__(self, config: ScenarioConfig, data_paths=None) -> None:
         super().__init__()
         self.config = config
+        self.data_paths = data_paths
         self.current_tick = 0
         self.sim_time_minutes = 0
         self.running = True
@@ -98,7 +99,16 @@ class UrbanModel(mesa.Model):
         self.reset_random_system(config.seed)
 
         # 1. Physical spatial and multi-modal network
-        self.network = MultiModalNetwork()
+        if getattr(config, "use_real_data", False) and config.network_paths.get(
+            "graphml"
+        ):
+            self.network = MultiModalNetwork.load_from_osm(
+                graphml_path=config.network_paths["graphml"],
+                metro_json_path=config.network_paths.get("metro_json"),
+                bus_json_path=config.network_paths.get("bus_json"),
+            )
+        else:
+            self.network = MultiModalNetwork()
 
         # 2. Scheduler
         self.schedule = SimpleScheduler(self)
@@ -490,9 +500,9 @@ class MesaSimEngine:
     Wraps the Mesa UrbanModel with REST and WebSocket serializer mappings.
     """
 
-    def __init__(self, config: ScenarioConfig) -> None:
+    def __init__(self, config: ScenarioConfig, data_paths=None) -> None:
         self.config = config
-        self.model = UrbanModel(config)
+        self.model = UrbanModel(config, data_paths=data_paths)
         self._pending_events: list[Event] = []
 
     @property
@@ -560,8 +570,15 @@ class MesaSimEngine:
     def _generate_grid_cells(self) -> list[GridCell]:
         """Aggregate high-resolution agent locations into a 10x10 coarse visualization grid."""
         GRID_ROWS, GRID_COLS = 10, 10
-        lat_start = CITY_LAT - (GRID_ROWS / 2) * 0.005
-        lon_start = CITY_LON - (GRID_COLS / 2) * 0.005
+
+        # Use the network's dynamic bounding box (works for both synthetic and real data)
+        net = self.model.network
+        lat_start = net.lat_min
+        lon_start = net.lon_min
+        lat_span = max(0.001, net.lat_max - net.lat_min)
+        lon_span = max(0.001, net.lon_max - net.lon_min)
+        lat_step = lat_span / GRID_ROWS
+        lon_step = lon_span / GRID_COLS
 
         # Initialize grid structures
         cells = []
@@ -585,8 +602,8 @@ class MesaSimEngine:
             node_data = self.model.network.g.nodes[node_id]
             lat, lon = node_data["lat"], node_data["lon"]
 
-            r = int(np.clip((lat - lat_start) / 0.005, 0, GRID_ROWS - 1))
-            c = int(np.clip((lon - lon_start) / 0.005, 0, GRID_COLS - 1))
+            r = int(np.clip((lat - lat_start) / lat_step, 0, GRID_ROWS - 1))
+            c = int(np.clip((lon - lon_start) / lon_step, 0, GRID_COLS - 1))
             grid_data[r][c]["density"] += 1
 
         # 2. Map road segment congestions to grid bins
@@ -595,8 +612,8 @@ class MesaSimEngine:
                 u_lat = self.model.network.g.nodes[u]["lat"]
                 u_lon = self.model.network.g.nodes[u]["lon"]
 
-                r = int(np.clip((u_lat - lat_start) / 0.005, 0, GRID_ROWS - 1))
-                c = int(np.clip((u_lon - lon_start) / 0.005, 0, GRID_COLS - 1))
+                r = int(np.clip((u_lat - lat_start) / lat_step, 0, GRID_ROWS - 1))
+                c = int(np.clip((u_lon - lon_start) / lon_step, 0, GRID_COLS - 1))
 
                 flow = edge_data.get("flow", 0)
                 capacity = edge_data.get("capacity", 100.0)
@@ -608,8 +625,8 @@ class MesaSimEngine:
         # 3. Build and return serializable GridCell list
         for r in range(GRID_ROWS):
             for c in range(GRID_COLS):
-                cell_lat = lat_start + r * 0.005
-                cell_lon = lon_start + c * 0.005
+                cell_lat = lat_start + r * lat_step
+                cell_lon = lon_start + c * lon_step
                 data = grid_data[r][c]
 
                 avg_congestion = (
