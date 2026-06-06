@@ -7,8 +7,13 @@ hard project constraint (PROJECT_SPEC §4.3).
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    from app.sim.adapter import DataPaths
 
 
 class Settings(BaseSettings):
@@ -43,6 +48,33 @@ class Settings(BaseSettings):
 
     # Default synthetic population size for a new scenario.
     default_population: int = 5_000
+
+    # --- Real-data inputs (SUB-04 outputs; loaded by the mesa engine) ---
+    processed_data_dir: str = "data/processed_data"
+
+    def resolved_data_paths(self, city: str) -> DataPaths:
+        """Map config intent → concrete files under processed_data_dir.
+
+        Fails fast (at scenario creation) if a required file is missing, so the
+        error surfaces cleanly instead of crashing mid tick-loop.
+        """
+        from app.sim.adapter import DataPaths  # local import avoids any cycle
+
+        base = Path(self.processed_data_dir)
+        paths = DataPaths(
+            road_network=base / "network.graphml",
+            metro_network=base / "metro_network.json",
+            bus_routes=base / "bus_routes.json",
+            population=base / "synthetic_population.parquet",  # TODO(SUB-04): confirm filename
+            weather=base / f"weather_{city}.csv",
+        )
+        missing = [str(p) for p in paths.all() if not p.exists()]
+        if missing:
+            raise FileNotFoundError(
+                "use_real_data=True but these processed-data files are missing: "
+                + ", ".join(missing)
+            )
+        return paths
 
     @property
     def cors_origin_list(self) -> list[str]:
