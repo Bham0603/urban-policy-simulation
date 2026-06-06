@@ -10,4 +10,5 @@ Guidance for Claude Code (and any AI agent) working in the `data/` directory of 
 ---
 
 ## Technical stack & Scope
+
 - Ingestion pipelines, data processing scripts, datasets, and schemas.
