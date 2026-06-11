@@ -16,14 +16,6 @@ export interface MapData {
   agents: Agent[];
 }
 
-// One coarse map cell from the backend (lat/lon centered on Delhi).
-export interface HeatmapCell {
-  lat: number;
-  lon: number;
-  density: number;
-  congestion: number;
-}
-
 export class MapEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -40,18 +32,6 @@ export class MapEngine {
   public showAgents: boolean = true;
   public showTransit: boolean = true;
   public showFlood: boolean = false;
-  public showHeatmap: boolean = true;
-
-  // Backend grid: latest density/congestion per cell, keyed by "lat,lon".
-  // Diff frames only send changed cells, so we accumulate them ourselves.
-  private heatmap: Map<string, HeatmapCell> = new Map();
-
-  // Coordinate transform: backend cells sit on a 0.01° grid around Delhi.
-  // 1° ≈ DEG_TO_PX canvas units at scale=1 puts the whole 10×10 grid inside the
-  // outer road ring (≈400 px), which is what the radial network expects.
-  private static readonly CITY_LAT = 28.6328;
-  private static readonly CITY_LON = 77.2197;
-  private static readonly DEG_TO_PX = 5000;
 
   // Mock geographical bounds (centering near Delhi/NCR coordinates)
   private data: MapData = {
@@ -240,20 +220,6 @@ export class MapEngine {
     this.showFlood = active;
   }
 
-  // Merge backend tick diff cells into the accumulated heatmap.
-  public ingestCells(cells: HeatmapCell[]) {
-    for (const c of cells) {
-      this.heatmap.set(`${c.lat},${c.lon}`, c);
-    }
-  }
-
-  // Translate a backend lat/lon into local canvas coordinates.
-  private project(lat: number, lon: number): [number, number] {
-    const x = (lon - MapEngine.CITY_LON) * MapEngine.DEG_TO_PX;
-    const y = -(lat - MapEngine.CITY_LAT) * MapEngine.DEG_TO_PX;
-    return [x, y];
-  }
-
   // Start graphics drawing loop
   public start() {
     if (this.isRunning) return;
@@ -285,25 +251,6 @@ export class MapEngine {
     ctx.save();
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
-
-    // 0. Backend grid heatmap — congestion intensity per ~1km cell.
-    //    Drawn first so all other layers (flood, roads, metro, agents) sit on top.
-    if (this.showHeatmap && this.heatmap.size > 0) {
-      // 0.01° per cell → cellPx px wide at scale=1.
-      const cellPx = 0.01 * MapEngine.DEG_TO_PX;
-      const half = cellPx / 2;
-      for (const c of this.heatmap.values()) {
-        const [px, py] = this.project(c.lat, c.lon);
-        // Saturating ramp: green → amber → red as congestion rises.
-        const intensity = Math.min(1.0, c.congestion);
-        const r = Math.round(40 + 215 * intensity);
-        const g = Math.round(200 - 160 * intensity);
-        const b = Math.round(80 - 60 * intensity);
-        const a = 0.18 + 0.42 * intensity;
-        ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-        ctx.fillRect(px - half, py - half, cellPx, cellPx);
-      }
-    }
 
     // 1. Draw flood overlays (semi-transparent glowing red/blue polygon layers)
     if (this.showFlood) {

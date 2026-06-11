@@ -11,26 +11,6 @@ from app.services.scenario_manager import ScenarioManager
 router = APIRouter(tags=["health"])
 
 
-@router.get("/")
-def root() -> dict[str, object]:
-    """Friendly landing — silences the 'GET / 404' a browser auto-fires.
-
-    This is an API, not a website, but operators who hit the bare host shouldn't
-    have to guess what to open next. Lists the entry points and the version.
-    """
-    return {
-        "service": "Urban Intelligence Platform — Backend (SUB-05)",
-        "version": __version__,
-        "links": {
-            "docs": "/docs",
-            "openapi": "/openapi.json",
-            "healthz": "/healthz",
-            "readyz": "/readyz",
-            "scenarios": "/api/v1/scenarios",
-        },
-    }
-
-
 @router.get("/healthz")
 def healthz() -> dict[str, str]:
     """Liveness: the process is up."""
