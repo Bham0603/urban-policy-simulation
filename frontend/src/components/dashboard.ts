@@ -44,6 +44,7 @@ export class DashboardApp {
     this.initLayerToggles();
     this.initScenarioSelector();
     this.initModeToggles();
+    this.initLiveControls();
 
     // Map Engine loop
     this.mapEngine.start();
@@ -117,11 +118,42 @@ export class DashboardApp {
     try {
       const res = await fetch(`${this.restBaseUrl}/scenarios`);
       if (!res.ok) return null;
-      const list = (await res.json()) as Array<{ id: string; name: string }>;
-      return list.find((s) => s.name === name)?.id ?? null;
+      const list = (await res.json()) as Array<{
+        id: string;
+        name: string;
+        config: { seed: number; population: number; tick_minutes: number; city: string };
+      }>;
+      const match = list.find((s) => s.name === name);
+      if (match) this.renderScenarioFacts(match);
+      return match?.id ?? null;
     } catch {
       return null;
     }
+  }
+
+  // Append real backend facts (id, seed, population) to the scenario panel so the
+  // operator can see exactly what they're connected to — not just the marketing blurb.
+  private renderScenarioFacts(summary: {
+    id: string;
+    config: { seed: number; population: number; tick_minutes: number; city: string };
+  }) {
+    const desc = document.getElementById('scenario-details');
+    if (!desc) return;
+    const factsId = 'scenario-facts';
+    let facts = document.getElementById(factsId);
+    if (!facts) {
+      facts = document.createElement('div');
+      facts.id = factsId;
+      facts.style.cssText =
+        'margin-top: var(--space-2); font-family: var(--font-mono, monospace); font-size: 11px; color: var(--text-muted); line-height: 1.5;';
+      desc.parentElement?.appendChild(facts);
+    }
+    const c = summary.config;
+    facts.innerHTML = `
+      <div>id <span style="color:var(--accent);">${summary.id}</span></div>
+      <div>city <span style="color:var(--accent);">${c.city}</span> · seed <span style="color:var(--accent);">${c.seed}</span></div>
+      <div>pop <span style="color:var(--accent);">${c.population.toLocaleString()}</span> · tick <span style="color:var(--accent);">${c.tick_minutes} sim-min</span></div>
+    `;
   }
 
   // After a few ticks of baseline, inject the event that defines each scenario so
@@ -206,6 +238,12 @@ export class DashboardApp {
       this.rainIntensity = rain;
       this.updateWeatherUI();
       this.mapEngine.setFlood(rain > 0.6);
+    }
+
+    // Backend grid cells: TickDiff sends only the ones that changed this tick.
+    const cells = frame.diff?.changed_cells;
+    if (Array.isArray(cells) && cells.length > 0) {
+      this.mapEngine.ingestCells(cells);
     }
 
     // After a brief baseline, auto-inject the scenario's defining event.
@@ -446,6 +484,68 @@ export class DashboardApp {
         this.connectBackend();
       });
     }
+  }
+
+  // Inject Reset + Export buttons next to the existing playback controls and
+  // render the resolved scenario seed/population once we're connected. These
+  // are added programmatically so we don't have to fork index.html for them.
+  private initLiveControls() {
+    const playbackHost = document.querySelector('.playback-controls') as HTMLElement | null;
+    if (!playbackHost) return;
+
+    const mkBtn = (id: string, title: string, label: string, onClick: () => void) => {
+      const btn = document.createElement('button');
+      btn.className = 'control-btn';
+      btn.id = id;
+      btn.title = title;
+      btn.textContent = label;
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    playbackHost.appendChild(
+      mkBtn('playback-reset', 'Reset scenario to tick 0', '↻', () => this.resetScenario())
+    );
+    playbackHost.appendChild(
+      mkBtn('playback-export', 'Download metrics arc as CSV', '⤓', () => this.exportRun())
+    );
+  }
+
+  private async resetScenario() {
+    if (this.scenarioId) {
+      try {
+        await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/reset`, { method: 'POST' });
+        this.archetypeInjected = false;
+        this.addEventLog('Scenario reset to tick 0.', 'info');
+        // After a reset the scenario is in 'created' state; restart it so the stream resumes.
+        await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/start`, { method: 'POST' });
+      } catch (e) {
+        this.addEventLog(`Reset failed: ${e}`, 'warning');
+      }
+    } else {
+      this.simClock = 0;
+      this.rainIntensity = 0;
+      this.mapEngine.setFlood(false);
+      this.updateClockUI();
+      this.updateWeatherUI();
+      this.addEventLog('Demo sandbox reset.', 'info');
+    }
+  }
+
+  private exportRun() {
+    if (!this.scenarioId) {
+      this.addEventLog('No live scenario — export only works in Live Connected mode.', 'warning');
+      return;
+    }
+    const url = `${this.restBaseUrl}/scenarios/${this.scenarioId}/export?format=csv`;
+    // Anchor click triggers the browser's native download dialog.
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    this.addEventLog('Downloaded metrics arc CSV.', 'success');
   }
 
   private initModeToggles() {
