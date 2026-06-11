@@ -23,6 +23,14 @@ export class DashboardApp {
   private restBaseUrl = 'http://localhost:8000/api/v1';
   private wsBaseUrl = 'ws://localhost:8000/ws';
 
+  // Resolved at connect time — backend stores scenarios by id (e.g. scenario_0001),
+  // while currentScenario holds the human name (e.g. scenario_a_monsoon).
+  private scenarioId: string | null = null;
+  // Debounce slider-driven policy posts so we don't flood the backend.
+  private policyDebounce: number | null = null;
+  // Whether we've auto-injected this scenario's archetypal event for this run.
+  private archetypeInjected = false;
+
   constructor() {
     this.mapEngine = new MapEngine('map-canvas');
     this.chartsManager = new ChartsManager();
@@ -36,6 +44,7 @@ export class DashboardApp {
     this.initLayerToggles();
     this.initScenarioSelector();
     this.initModeToggles();
+    this.initLiveControls();
 
     // Map Engine loop
     this.mapEngine.start();
@@ -56,18 +65,31 @@ export class DashboardApp {
     }
 
     try {
-      // Connect to WebSocket stream for selected scenario
-      const socketUrl = `${this.wsBaseUrl}/scenarios/${this.currentScenario}`;
+      // Backend keys scenarios by id; resolve from the human name in the selector.
+      this.scenarioId = await this.resolveScenarioId(this.currentScenario);
+      if (!this.scenarioId) {
+        this.handleDisconnect(`Scenario '${this.currentScenario}' not registered on backend.`);
+        return;
+      }
+
+      // Start (idempotent on the backend — returns 'running' if already running).
+      await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/start`, { method: 'POST' });
+
+      const socketUrl = `${this.wsBaseUrl}/scenarios/${this.scenarioId}`;
       this.ws = new WebSocket(socketUrl);
+      this.archetypeInjected = false;
 
       this.ws.onopen = () => {
-        this.addEventLog(`Connected to live simulation stream (${this.currentScenario})`, 'success');
+        this.addEventLog(
+          `Connected to live stream (${this.currentScenario} → ${this.scenarioId})`,
+          'success'
+        );
         if (wsStatus) {
           wsStatus.textContent = 'Live Connected';
           wsStatus.className = 'connection-badge connected';
         }
-        // Sync initial state if available
-        this.fetchScenarioMetadata();
+        this.isPlaying = true;
+        this.reflectPlayUI();
       };
 
       this.ws.onmessage = (event) => {
@@ -87,8 +109,78 @@ export class DashboardApp {
         this.handleDisconnect('Backend offline. Initialized local demo sandbox.');
       };
 
-    } catch (e) {
+    } catch {
       this.handleDisconnect('Backend unreachable. Running in local demo mode.');
+    }
+  }
+
+  private async resolveScenarioId(name: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${this.restBaseUrl}/scenarios`);
+      if (!res.ok) return null;
+      const list = (await res.json()) as Array<{
+        id: string;
+        name: string;
+        config: { seed: number; population: number; tick_minutes: number; city: string };
+      }>;
+      const match = list.find((s) => s.name === name);
+      if (match) this.renderScenarioFacts(match);
+      return match?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Append real backend facts (id, seed, population) to the scenario panel so the
+  // operator can see exactly what they're connected to — not just the marketing blurb.
+  private renderScenarioFacts(summary: {
+    id: string;
+    config: { seed: number; population: number; tick_minutes: number; city: string };
+  }) {
+    const desc = document.getElementById('scenario-details');
+    if (!desc) return;
+    const factsId = 'scenario-facts';
+    let facts = document.getElementById(factsId);
+    if (!facts) {
+      facts = document.createElement('div');
+      facts.id = factsId;
+      facts.style.cssText =
+        'margin-top: var(--space-2); font-family: var(--font-mono, monospace); font-size: 11px; color: var(--text-muted); line-height: 1.5;';
+      desc.parentElement?.appendChild(facts);
+    }
+    const c = summary.config;
+    facts.innerHTML = `
+      <div>id <span style="color:var(--accent);">${summary.id}</span></div>
+      <div>city <span style="color:var(--accent);">${c.city}</span> · seed <span style="color:var(--accent);">${c.seed}</span></div>
+      <div>pop <span style="color:var(--accent);">${c.population.toLocaleString()}</span> · tick <span style="color:var(--accent);">${c.tick_minutes} sim-min</span></div>
+    `;
+  }
+
+  // After a few ticks of baseline, inject the event that defines each scenario so
+  // the dashboard reveals real dynamics without the operator hunting for a button.
+  private async triggerArchetypalEvent() {
+    if (this.archetypeInjected || !this.scenarioId) return;
+    this.archetypeInjected = true;
+
+    let event: { type: string; payload: Record<string, number | string | boolean> } | null = null;
+    if (this.currentScenario === 'scenario_a_monsoon') {
+      event = { type: 'WEATHER_EVENT', payload: { rain_intensity: 0.9, duration_ticks: 60 } };
+    } else if (this.currentScenario === 'scenario_b_metro_shutdown') {
+      event = { type: 'INFRASTRUCTURE_EVENT', payload: { disable_metro_line: 'yellow' } };
+    } else if (this.currentScenario === 'scenario_c_fuel_shock') {
+      event = { type: 'POLICY_EVENT', payload: { fuel_price_delta_paise: 2000 } };
+    }
+    if (!event) return;
+
+    try {
+      await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/events`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(event),
+      });
+      this.addEventLog(`Auto-injected ${event.type} for ${this.currentScenario}.`, 'warning');
+    } catch (e) {
+      this.addEventLog(`Failed to inject archetypal event: ${e}`, 'danger');
     }
   }
 
@@ -107,58 +199,59 @@ export class DashboardApp {
     }
   }
 
-  private async fetchScenarioMetadata() {
-    try {
-      const res = await fetch(`${this.restBaseUrl}/scenarios/${this.currentScenario}`);
-      if (res.ok) {
-        const metadata = await res.json();
-        this.addEventLog(`Synced configuration from backend. Seed: ${metadata.seed || 'Default'}`, 'info');
-      }
-    } catch (e) {
-      // Quiet fail - backends might not be fully stood up yet
-    }
-  }
-
   private handleBackendTick(frame: any) {
-    // Sync clock
-    if (frame.tick !== undefined) {
-      // Ticks are 5 min steps
-      this.simClock = 8 * 60 + frame.tick * 5;
+    // Backend WSMessage envelopes — type is 'status' | 'tick' | 'error'.
+    if (frame.type === 'error') {
+      this.addEventLog(`Backend: ${frame.message ?? 'error'}`, 'danger');
+      return;
+    }
+    if (frame.type === 'status') {
+      // Initial frame after connect — nothing to render yet.
+      return;
+    }
+
+    // 'tick' frames carry diff: { metrics, changed_cells }.
+    const m = frame.diff?.metrics;
+    if (!m) return;
+
+    // sim_time_minutes is absolute simulated minutes since midnight — drive clock from it.
+    if (typeof m.sim_time_minutes === 'number') {
+      this.simClock = m.sim_time_minutes;
       this.updateClockUI();
     }
 
-    // Capture telemetry metrics
-    const delay = frame.metrics?.avg_commute_delay || 15;
-    const share = frame.metrics?.transit_mode_share || 32;
-    const gridlock = frame.metrics?.gridlock_index || 10;
-    const metroCap = frame.metrics?.metro_stations_at_capacity || 0;
+    // Map backend fields → dashboard widgets.
+    //   avg_commute_minutes        → "AVG COMMUTE DELAY" (minutes)
+    //   metro+bus mode share       → "TRANSIT MODE SHARE" (%)
+    //   road_congestion_index*100  → "GRIDLOCK INDEX" (%)
+    //   metro_load_pct → out of 42 → "METRO STATIONS AT CAP"
+    const ms = m.mode_share ?? {};
+    const transit = ((ms.metro ?? 0) + (ms.bus ?? 0)) * 100;
+    const delay = m.avg_commute_minutes ?? 0;
+    const gridlock = (m.road_congestion_index ?? 0) * 100;
+    const metroCap = Math.round(((m.metro_load_pct ?? 0) / 100) * 42);
+    this.chartsManager.recordTick(delay, transit, gridlock, metroCap);
 
-    // Update charts
-    this.chartsManager.recordTick(delay, share, gridlock, metroCap);
-
-    // Sync policies if modified upstream
-    if (frame.active_policies) {
-      this.policyController.syncState({
-        busCapacity: frame.active_policies.bus_capacity_boost || 0,
-        metroFreq: frame.active_policies.metro_frequency_boost || 0,
-        congestionPricing: frame.active_policies.congestion_pricing_fee || 0,
-        wfhMandate: frame.active_policies.wfh_percentage > 0
-      });
-    }
-
-    // Sync weather and events
-    if (frame.weather) {
-      this.rainIntensity = frame.weather.rain_intensity || 0;
+    // Weather lives inside metrics (rain_intensity), not a separate field.
+    const rain = m.rain_intensity ?? 0;
+    if (rain !== this.rainIntensity) {
+      this.rainIntensity = rain;
       this.updateWeatherUI();
+      this.mapEngine.setFlood(rain > 0.6);
     }
 
-    if (frame.events && frame.events.length > 0) {
-      frame.events.forEach((evt: any) => {
-        this.addEventLog(evt.description, 'info');
-      });
+    // Backend grid cells: TickDiff sends only the ones that changed this tick.
+    const cells = frame.diff?.changed_cells;
+    if (Array.isArray(cells) && cells.length > 0) {
+      this.mapEngine.ingestCells(cells);
     }
 
-    // Run Map Engine updates
+    // After a brief baseline, auto-inject the scenario's defining event.
+    if (frame.tick === 8) {
+      this.triggerArchetypalEvent();
+    }
+
+    // Animate map.
     this.mapEngine.update(
       this.rainIntensity,
       this.policyController.state.busCapacity,
@@ -270,8 +363,8 @@ export class DashboardApp {
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
         if (this.ws) {
-          // Push command to backend
-          this.ws.send(JSON.stringify({ action: 'step' }));
+          // Backend ticks autonomously; no manual step in v1.
+          this.addEventLog('Backend ticks autonomously — manual stepping disabled.', 'info');
         } else {
           this.triggerDemoTick();
         }
@@ -285,39 +378,48 @@ export class DashboardApp {
     }
   }
 
-  private togglePlay(force?: boolean) {
+  private async togglePlay(force?: boolean) {
     this.isPlaying = force !== undefined ? force : !this.isPlaying;
+    this.reflectPlayUI();
+
+    if (this.scenarioId) {
+      // Live mode: drive lifecycle via REST (the WS only accepts Event payloads).
+      const endpoint = this.isPlaying ? 'resume' : 'pause';
+      try {
+        await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/${endpoint}`, {
+          method: 'POST',
+        });
+      } catch (e) {
+        this.addEventLog(`Failed to ${endpoint}: ${e}`, 'warning');
+      }
+    } else {
+      // Offline demo mode: tick locally.
+      if (this.isPlaying) {
+        this.tickIntervalId = window.setInterval(() => this.triggerDemoTick(), this.tickRateMs);
+      } else if (this.tickIntervalId) {
+        clearInterval(this.tickIntervalId);
+        this.tickIntervalId = null;
+      }
+    }
+    this.addEventLog(
+      this.isPlaying ? 'Simulation playback running.' : 'Simulation playback paused.',
+      'info'
+    );
+  }
+
+  private reflectPlayUI() {
     const playBtn = document.getElementById('playback-play');
     const playIcon = document.getElementById('play-icon');
-
     if (this.isPlaying) {
       playBtn?.classList.add('active');
       if (playIcon) {
         playIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
       }
-      
-      if (this.ws) {
-        this.ws.send(JSON.stringify({ action: 'resume' }));
-      } else {
-        // Start local simulation tick intervals
-        this.tickIntervalId = window.setInterval(() => this.triggerDemoTick(), this.tickRateMs);
-      }
-      this.addEventLog("Simulation playback running.", "info");
     } else {
       playBtn?.classList.remove('active');
       if (playIcon) {
         playIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
       }
-      
-      if (this.ws) {
-        this.ws.send(JSON.stringify({ action: 'pause' }));
-      } else {
-        if (this.tickIntervalId) {
-          clearInterval(this.tickIntervalId);
-          this.tickIntervalId = null;
-        }
-      }
-      this.addEventLog("Simulation playback paused.", "info");
     }
   }
 
@@ -368,13 +470,82 @@ export class DashboardApp {
 
         this.addEventLog(`Loaded scenario: ${val}. Syncing connections.`, 'info');
 
-        // Reconnect WebSocket to the new scenario endpoint
+        // Pause the previous run on the backend (best-effort) and drop the socket.
+        if (this.scenarioId) {
+          fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/pause`, {
+            method: 'POST',
+          }).catch(() => {});
+        }
         if (this.ws) {
           this.ws.close();
+          this.ws = null;
         }
+        this.scenarioId = null;
         this.connectBackend();
       });
     }
+  }
+
+  // Inject Reset + Export buttons next to the existing playback controls and
+  // render the resolved scenario seed/population once we're connected. These
+  // are added programmatically so we don't have to fork index.html for them.
+  private initLiveControls() {
+    const playbackHost = document.querySelector('.playback-controls') as HTMLElement | null;
+    if (!playbackHost) return;
+
+    const mkBtn = (id: string, title: string, label: string, onClick: () => void) => {
+      const btn = document.createElement('button');
+      btn.className = 'control-btn';
+      btn.id = id;
+      btn.title = title;
+      btn.textContent = label;
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    playbackHost.appendChild(
+      mkBtn('playback-reset', 'Reset scenario to tick 0', '↻', () => this.resetScenario())
+    );
+    playbackHost.appendChild(
+      mkBtn('playback-export', 'Download metrics arc as CSV', '⤓', () => this.exportRun())
+    );
+  }
+
+  private async resetScenario() {
+    if (this.scenarioId) {
+      try {
+        await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/reset`, { method: 'POST' });
+        this.archetypeInjected = false;
+        this.addEventLog('Scenario reset to tick 0.', 'info');
+        // After a reset the scenario is in 'created' state; restart it so the stream resumes.
+        await fetch(`${this.restBaseUrl}/scenarios/${this.scenarioId}/start`, { method: 'POST' });
+      } catch (e) {
+        this.addEventLog(`Reset failed: ${e}`, 'warning');
+      }
+    } else {
+      this.simClock = 0;
+      this.rainIntensity = 0;
+      this.mapEngine.setFlood(false);
+      this.updateClockUI();
+      this.updateWeatherUI();
+      this.addEventLog('Demo sandbox reset.', 'info');
+    }
+  }
+
+  private exportRun() {
+    if (!this.scenarioId) {
+      this.addEventLog('No live scenario — export only works in Live Connected mode.', 'warning');
+      return;
+    }
+    const url = `${this.restBaseUrl}/scenarios/${this.scenarioId}/export?format=csv`;
+    // Anchor click triggers the browser's native download dialog.
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    this.addEventLog('Downloaded metrics arc CSV.', 'success');
   }
 
   private initModeToggles() {
@@ -520,21 +691,29 @@ export class DashboardApp {
   }
 
   private handlePolicyUpdate(policyState: PolicyState) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // Propagate policies to active backend
-      this.ws.send(JSON.stringify({
-        action: 'policy',
-        data: {
-          bus_capacity_boost: policyState.busCapacity,
-          metro_frequency_boost: policyState.metroFreq,
-          congestion_pricing_fee: policyState.congestionPricing,
-          wfh_percentage: policyState.wfhMandate ? 30 : 0
-        }
-      }));
+    // Debounce slider drag so we don't post on every pixel — coalesce to one event.
+    if (this.policyDebounce !== null) {
+      window.clearTimeout(this.policyDebounce);
     }
-    
-    // Add micro feedback in events feed
-    this.addEventLog(`Policy adjusted: Bus Cap +${policyState.busCapacity}%, Metro Freq +${policyState.metroFreq}%, Fee ₹${policyState.congestionPricing}, WFH ${policyState.wfhMandate ? '30%' : 'Off'}`, 'info');
+    this.policyDebounce = window.setTimeout(() => {
+      this.policyDebounce = null;
+      if (this.scenarioId && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Backend Event contract: { type: EventType, payload: dict[str, scalar] }.
+        // Bus slider 0-100 → multiplier 1.0-2.0. Congestion fee (₹) → fuel-price-delta proxy (paise).
+        // metro_freq / wfh_pct pass through as named knobs for future engine support.
+        const payload: Record<string, number | boolean> = {
+          bus_capacity_pct: 1.0 + policyState.busCapacity / 100,
+          fuel_price_delta_paise: policyState.congestionPricing * 100,
+          metro_freq_boost_pct: policyState.metroFreq,
+          wfh_pct: policyState.wfhMandate ? 30 : 0,
+        };
+        this.ws.send(JSON.stringify({ type: 'POLICY_EVENT', payload }));
+      }
+      this.addEventLog(
+        `Policy adjusted: Bus +${policyState.busCapacity}%, Metro +${policyState.metroFreq}%, Fee ₹${policyState.congestionPricing}, WFH ${policyState.wfhMandate ? '30%' : 'Off'}`,
+        'info'
+      );
+    }, 300);
   }
 
   // --- HELPER UTILITIES ---

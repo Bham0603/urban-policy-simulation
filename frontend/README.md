@@ -70,3 +70,30 @@ frontend/
    ```bash
    npm run build
    ```
+
+## 🔗 Running with the live backend
+
+For Live Connected mode, the SUB-05 backend must be reachable at `http://localhost:8000`:
+
+```powershell
+# In a separate terminal
+cd ../backend
+.\.venv\Scripts\Activate.ps1     # one-time: see backend/README.md for venv setup
+uvicorn app.main:app --port 8000
+```
+
+Then `npm run dev` here. The dashboard will:
+
+- `GET /api/v1/scenarios` to resolve the selected scenario *name* (`scenario_a_monsoon`)
+  to the backend *id* (`scenario_0001`).
+- `POST /api/v1/scenarios/{id}/start` to make sure it's ticking.
+- Open `ws://localhost:8000/ws/scenarios/{id}` for live `TickDiff` frames.
+- After 8 ticks of baseline, auto-inject the scenario's archetypal event
+  (`WEATHER_EVENT` for monsoon, `INFRASTRUCTURE_EVENT` for metro shutdown,
+  `POLICY_EVENT` for fuel shock) so you immediately see real dynamics.
+- Drive the play/pause buttons via REST (`/start`, `/pause`, `/resume`).
+- Send policy slider changes as `POLICY_EVENT` frames over the WebSocket,
+  debounced to 300 ms.
+
+If the backend is unreachable, the dashboard transparently falls back to the
+local mock tick loop.
