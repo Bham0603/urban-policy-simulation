@@ -9,6 +9,7 @@ dependencies = [
     "networkx>=3.0",
     "pandas>=2.0.0",
     "osmnx>=1.9.0",
+    "pyarrow>=15.0.0",
 ]
 
 [project.optional-dependencies]
