@@ -78,7 +78,9 @@ def export_metrics(
             "rain_intensity",
             "avg_commute_minutes",
             "metro_load_pct",
+            "bus_load_pct",
             "road_congestion_index",
+            "aqi_estimate",
             "agents_commuting",
             *[f"mode_share_{m}" for m in mode_cols],
         ]
@@ -91,7 +93,9 @@ def export_metrics(
                 p.rain_intensity,
                 p.avg_commute_minutes,
                 p.metro_load_pct,
+                p.bus_load_pct,
                 p.road_congestion_index,
+                p.aqi_estimate,
                 p.agents_commuting,
                 *[p.mode_share.get(Mode(m), 0.0) for m in mode_cols],
             ]
