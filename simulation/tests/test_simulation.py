@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from app.models.schemas import ScenarioConfig, Event, EventType
 from simulation.engine import MesaSimEngine, UrbanModel
-from simulation.agents import Occupation, Household, AgentMemory, ActivitySchedule
+from simulation.agents import (
+    Occupation,
+    Household,
+    AgentMemory,
+    ActivitySchedule,
+    CitizenAgent,
+)
 
 
 def test_model_initialization():
@@ -15,7 +21,8 @@ def test_model_initialization():
     model = UrbanModel(config)
 
     # Assert model parameters
-    assert len(model.schedule.agents) == 100
+    citizen_agents = [a for a in model.schedule.agents if isinstance(a, CitizenAgent)]
+    assert len(citizen_agents) == 100
     assert model.current_tick == 0
     assert model.sim_time_minutes == 0
 
@@ -24,7 +31,7 @@ def test_model_initialization():
     assert len(model.network.g.edges) > 0
 
     # Assert agent details are correct
-    for agent in model.schedule.agents:
+    for agent in citizen_agents:
         assert 1 <= agent.income_bracket <= 5
         assert 5 <= agent.age <= 80  # Wider range due to children and elderly
 
@@ -46,6 +53,8 @@ def test_occupation_distribution():
 
     occupations_seen = set()
     for agent in model.schedule.agents:
+        if not isinstance(agent, CitizenAgent):
+            continue
         occupations_seen.add(agent.occupation)
 
     # All 5 archetypes should appear in a population of 200
@@ -288,6 +297,8 @@ def test_multi_leg_schedule():
 
     agents_with_multi_leg = 0
     for agent in model.schedule.agents:
+        if not isinstance(agent, CitizenAgent):
+            continue
         if len(agent.schedule.activities) > 2:
             agents_with_multi_leg += 1
 
