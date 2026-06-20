@@ -29,6 +29,8 @@ class Mode(StrEnum):
     metro = "metro"
     auto = "auto"
     car = "car"
+    bike_share = "bike_share"
+    e_rickshaw = "e_rickshaw"
 
 
 class ScenarioStatus(StrEnum):
@@ -129,8 +131,10 @@ class AggregateMetrics(BaseModel):
     avg_commute_minutes: float = 0.0
     mode_share: dict[Mode, float] = Field(default_factory=dict)
     metro_load_pct: float = 0.0
+    bus_load_pct: float = 0.0
     road_congestion_index: float = 0.0
     agents_commuting: int = 0
+    aqi_estimate: float = Field(0.0, ge=0.0, le=500.0, description="Estimated AQI (0-500) from mode-share emissions.")
 
 
 class MetricSeries(BaseModel):

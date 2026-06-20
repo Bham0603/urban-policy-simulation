@@ -42,6 +42,8 @@ class Mode(str, Enum):
     METRO = "metro"
     AUTO = "auto"
     CAR = "car"
+    BIKE_SHARE = "bike_share"
+    E_RICKSHAW = "e_rickshaw"
 
 
 class Occupation(str, Enum):
@@ -52,6 +54,10 @@ class Occupation(str, Enum):
     BLUE_COLLAR_WORKER = "blue_collar_worker"
     GIG_WORKER = "gig_worker"
     RETIRED_CITIZEN = "retired_citizen"
+    STALL_OWNER = "stall_owner"
+    STORE_MANAGER = "store_manager"
+    STORE_STAFF = "store_staff"
+    UNEMPLOYED = "unemployed"
 
 
 class ActivityType(str, Enum):
@@ -64,6 +70,7 @@ class ActivityType(str, Enum):
     RECREATION = "recreation"
     GIG_WORK = "gig_work"
     ESCORTING = "escorting"
+    VENDING = "vending"
 
 
 class AgentState:
@@ -282,11 +289,15 @@ class UtilityWeights:
 
     @staticmethod
     def for_occupation(occupation: Occupation) -> UtilityWeights:
-        """Return archetype-specific utility weights."""
+        """Return archetype-specific utility weights.
+
+        Calibrated against Delhi 2018 mode share survey (RITES):
+        Metro 15.5%, Bus 18%, Two-Wheeler 28.5%, Car 12%, Walk/Auto 26%.
+        """
         if occupation == Occupation.OFFICE_EXECUTIVE:
             return UtilityWeights(
                 beta_time=-0.15,
-                beta_cost=-0.002,
+                beta_cost=-0.012,   # raised from -0.002 to penalise car cost
                 beta_comfort=1.8,
                 beta_weather=-0.4,
                 beta_habit=0.4,
@@ -294,7 +305,7 @@ class UtilityWeights:
         elif occupation == Occupation.STUDENT:
             return UtilityWeights(
                 beta_time=-0.04,
-                beta_cost=-0.08,
+                beta_cost=-0.06,    # slightly lowered from -0.08
                 beta_comfort=0.1,
                 beta_weather=-1.5,
                 beta_habit=0.3,
@@ -302,7 +313,7 @@ class UtilityWeights:
         elif occupation == Occupation.BLUE_COLLAR_WORKER:
             return UtilityWeights(
                 beta_time=-0.10,
-                beta_cost=-0.05,
+                beta_cost=-0.04,    # slightly lowered from -0.05
                 beta_comfort=0.2,
                 beta_weather=-1.2,
                 beta_habit=0.5,
@@ -310,7 +321,7 @@ class UtilityWeights:
         elif occupation == Occupation.GIG_WORKER:
             return UtilityWeights(
                 beta_time=-0.18,
-                beta_cost=-0.06,
+                beta_cost=-0.05,    # slightly lowered from -0.06
                 beta_comfort=0.1,
                 beta_weather=-1.0,
                 beta_habit=0.2,
@@ -318,7 +329,7 @@ class UtilityWeights:
         elif occupation == Occupation.RETIRED_CITIZEN:
             return UtilityWeights(
                 beta_time=-0.03,
-                beta_cost=-0.03,
+                beta_cost=-0.025,   # slightly lowered from -0.03
                 beta_comfort=1.2,
                 beta_weather=-2.5,
                 beta_habit=0.6,
@@ -331,13 +342,16 @@ class UtilityWeights:
 # ---------------------------------------------------------------------------
 
 # Per-km rough estimates: (minutes/km, ₹/km, comfort 0..1)
+# Calibrated to Delhi 2018 mode share targets (RITES survey).
 _MODE_PROFILE: dict[str, tuple[float, float, float]] = {
     "walk": (12.0, 0.0, 0.30),
     "bike": (4.0, 0.5, 0.40),
-    "bus": (5.0, 1.5, 0.45),
-    "metro": (3.0, 3.0, 0.65),
+    "bus": (5.0, 1.2, 0.55),       # lowered cost ₹1.5→₹1.2, raised comfort 0.45→0.55 (DTC subsidy)
+    "metro": (3.0, 2.5, 0.65),     # lowered cost ₹3→₹2.5 (DMRC subsidised)
     "auto": (3.5, 12.0, 0.55),
-    "car": (3.0, 8.0, 0.75),
+    "car": (3.0, 10.0, 0.75),      # raised cost ₹8→₹10 (fuel + parking in central Delhi)
+    "bike_share": (4.5, 1.0, 0.35),  # slightly slower than owned bike, ₹1/km (docking time)
+    "e_rickshaw": (5.0, 4.0, 0.50),  # ~12 km/h, ₹4/km, moderate comfort
 }
 
 # How exposed each mode is to rain (0 = sheltered, 1 = fully exposed).
@@ -348,6 +362,8 @@ _RAIN_EXPOSURE: dict[str, float] = {
     "bus": 0.2,
     "metro": 0.0,
     "car": 0.0,
+    "bike_share": 1.0,   # fully exposed
+    "e_rickshaw": 0.6,   # partially covered
 }
 
 
@@ -511,6 +527,10 @@ class CitizenAgent(mesa.Agent):
         # Track if we've claimed a car from the household this trip
         self._holding_car = False
 
+        # Shopping extension — pending shopping needs for the ShopChoiceModel
+        self.shopping_needs: list[dict] = []
+        self._shopped_today = False
+
     @property
     def morning_departure_time(self) -> float:
         return self.schedule.leave_home_min + self.departure_adjustment
@@ -537,6 +557,10 @@ class CitizenAgent(mesa.Agent):
         if not self.model.network.disabled_metro_lines:
             modes.append("metro")
 
+        # Public shared modes — available to everyone (distance-gated in choose_mode)
+        modes.append("bike_share")
+        modes.append("e_rickshaw")
+
         return modes
 
     def step(self) -> None:
@@ -551,6 +575,9 @@ class CitizenAgent(mesa.Agent):
 
         # 2. Check for departure from work/activity (multi-leg or evening)
         elif self.state == AgentState.AT_WORK:
+            # Try discretionary shopping during evening window
+            if not self._shopped_today and current_time >= 17 * 60:
+                self._maybe_shop(current_time)
             if current_time >= self.evening_departure_time:
                 self.decide_and_depart(is_morning=False)
 
@@ -654,6 +681,14 @@ class CitizenAgent(mesa.Agent):
             if mode == "walk" and distance_km > 3.0:
                 continue
 
+            # Bike-share only for trips ≤5 km (docking station coverage)
+            if mode == "bike_share" and distance_km > 5.0:
+                continue
+
+            # E-rickshaw only for trips ≤8 km (first/last mile connector)
+            if mode == "e_rickshaw" and distance_km > 8.0:
+                continue
+
             # Get weather penalty from rain exposure
             weather_penalty = _RAIN_EXPOSURE.get(mode, 0.0) * rain
 
@@ -729,6 +764,14 @@ class CitizenAgent(mesa.Agent):
         # Bike: ₹1.5/km maintenance
         elif mode == "bike":
             return int(150 * dist_km)
+
+        # Bike-share: ₹10 flat + ₹1/km
+        elif mode == "bike_share":
+            return int(1000 + 100 * dist_km)
+
+        # E-rickshaw: ₹20 base + ₹8/km
+        elif mode == "e_rickshaw":
+            return int(2000 + 800 * dist_km)
 
         return 0  # Walk is free
 
@@ -839,3 +882,191 @@ class CitizenAgent(mesa.Agent):
                         self.schedule.leave_home_min = max(
                             6 * 60, self.schedule.leave_home_min - 15
                         )
+
+    def reset_for_new_day(self) -> None:
+        """Reset agent state for a new simulation day.
+
+        Called at the 24h boundary. Puts the agent back home, releases
+        any held car, and resets the activity leg index. Memory is
+        preserved so agents remember yesterday's frustrations.
+        """
+        self.state = AgentState.AT_HOME
+        self.current_mode = None
+        self.current_route = None
+        self.route_index = 0
+        self._current_leg_index = 0
+        self._shopped_today = False
+
+        # Release car back to household if we were holding one
+        if self._holding_car and self.household is not None:
+            self.household.release_car()
+            self._holding_car = False
+
+    # -----------------------------------------------------------------------
+    # Shopping — discretionary evening shop choice (ShopChoiceModel wiring)
+    # -----------------------------------------------------------------------
+
+    def _maybe_shop(self, current_time: int) -> None:
+        """Evaluate whether to make a discretionary shopping trip.
+
+        Triggered during the evening window (after 17:00) with a 10% per-tick
+        probability. Uses the ShopChoiceModel to pick a destination from
+        nearby stalls and stores.
+        """
+        rng = self.model._np_rng
+
+        # 10% per-tick chance of generating a shopping need
+        if rng.random() > 0.10:
+            return
+
+        # Check that model has shop infrastructure
+        if not hasattr(self.model, 'stalls') or not hasattr(self.model, 'stores'):
+            return
+
+        # Generate a shopping need based on occupation/income
+        product_types = ["food", "clothes", "accessories"]
+        weights = [0.6, 0.25, 0.15]
+        product_type = product_types[int(rng.choice(len(product_types), p=weights))]
+        urgency = float(rng.uniform(0.3, 1.0))
+
+        # Build alternatives from nearby stalls and stores
+        alternatives = self._build_shop_alternatives(product_type)
+        if not alternatives:
+            return
+
+        # Use the model's ShopChoiceModel to choose
+        if not hasattr(self.model, 'shop_choice_model') or self.model.shop_choice_model is None:
+            return
+
+        # Build a lightweight agent-like object for the ShopChoiceModel
+        from simulation.economic_agents import _AgentProxy
+        proxy = _AgentProxy(
+            income_bracket=self.income_bracket,
+            schedule=self.schedule,
+        )
+
+        rain = self.model.network.weather_rain_intensity
+        chosen = self.model.shop_choice_model.choose(
+            proxy, alternatives, rain_intensity=rain
+        )
+
+        # Process the purchase
+        self._shopped_today = True
+
+        if chosen.shop_type == "delivery":
+            # Delivery — no physical travel, dispatch delivery agent
+            if hasattr(self.model, 'delivery_agents') and self.model.delivery_agents:
+                delivery = list(self.model.delivery_agents.values())[0]
+                fee = delivery.get_delivery_fee(30.0, rain)
+                # Agent gets charged but doesn't move
+                self.shopping_needs.append({
+                    "product": product_type,
+                    "shop_id": chosen.shop_id,
+                    "type": "delivery",
+                    "cost": fee,
+                    "tick": self.model.current_tick,
+                })
+        else:
+            # Physical shopping — record as a transaction
+            self.shopping_needs.append({
+                "product": product_type,
+                "shop_id": chosen.shop_id,
+                "type": chosen.shop_type,
+                "cost": chosen.price_level * 100.0,
+                "tick": self.model.current_tick,
+            })
+
+            # If the shop is a stall, reduce its inventory
+            if chosen.shop_id in getattr(self.model, 'stalls', {}):
+                stall = self.model.stalls[chosen.shop_id]
+                stall.inventory = max(0.0, stall.inventory - 0.05)
+
+    def _build_shop_alternatives(self, product_type: str) -> list:
+        """Build ShopAlternative list from nearby stalls and stores."""
+        from simulation.economic_agents import ShopAlternative
+
+        net = self.model.network
+        alternatives = []
+
+        # Current agent location
+        if self.current_route and self.route_index < len(self.current_route):
+            agent_node = self.current_route[self.route_index]
+        elif self.work_node:
+            agent_node = self.work_node
+        else:
+            agent_node = self.home_node
+
+        agent_data = net.g.nodes.get(agent_node, {})
+        agent_lat = agent_data.get("lat", 0.0)
+        agent_lon = agent_data.get("lon", 0.0)
+
+        # Scan stalls
+        for stall_id, stall in getattr(self.model, 'stalls', {}).items():
+            if stall.is_disrupted_today or stall.inventory <= 0:
+                continue
+            # Check product match
+            match = 0.0
+            if product_type == "food" and stall.stall_type == "food":
+                match = 0.9
+            elif product_type == "clothes" and stall.stall_type == "clothes":
+                match = 0.9
+            elif product_type == "accessories" and stall.stall_type == "accessories":
+                match = 0.9
+            else:
+                match = 0.2  # partial match
+
+            stall_data = net.g.nodes.get(str(stall.current_location), {})
+            stall_lat = stall_data.get("lat", 0.0)
+            stall_lon = stall_data.get("lon", 0.0)
+            dist_km = math.sqrt((agent_lat - stall_lat)**2 + (agent_lon - stall_lon)**2) * 111.0
+
+            if dist_km > 5.0:
+                continue
+
+            stall_type_map = {
+                "food": "food_stall",
+                "clothes": "clothes_stall",
+                "accessories": "accessories_stall",
+            }
+
+            alternatives.append(ShopAlternative(
+                shop_id=stall_id,
+                shop_type=stall_type_map.get(stall.stall_type, "food_stall"),
+                distance_km=round(dist_km, 2),
+                travel_time_min=round(dist_km * 5.0, 1),  # rough estimate
+                price_level=0.3,  # stalls are cheap
+                product_match=match,
+            ))
+
+        # Scan stores
+        for store_id, store in getattr(self.model, 'stores', {}).items():
+            if store.inventory <= 0:
+                continue
+            store_data = net.g.nodes.get(str(store.store_node), {})
+            store_lat = store_data.get("lat", 0.0)
+            store_lon = store_data.get("lon", 0.0)
+            dist_km = math.sqrt((agent_lat - store_lat)**2 + (agent_lon - store_lon)**2) * 111.0
+
+            if dist_km > 5.0:
+                continue
+
+            alternatives.append(ShopAlternative(
+                shop_id=store_id,
+                shop_type="formal_store",
+                distance_km=round(dist_km, 2),
+                travel_time_min=round(dist_km * 3.5, 1),
+                price_level=0.7,  # formal stores are pricier
+                product_match=0.8,  # stores carry everything
+            ))
+
+        # Always add delivery option
+        alternatives.append(ShopAlternative(
+            shop_id=-1,
+            shop_type="delivery",
+            distance_km=0.0,
+            travel_time_min=30.0,
+            price_level=0.5,
+            product_match=0.7,
+        ))
+
+        return alternatives

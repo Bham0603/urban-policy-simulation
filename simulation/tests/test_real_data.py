@@ -274,7 +274,9 @@ class TestFullIntegration:
         model = UrbanModel(config)
 
         # Verify agents are assigned to real OSM node IDs (strings)
-        assert len(model.schedule.agents) == 50
+        from simulation.agents import CitizenAgent
+        citizen_agents = [a for a in model.schedule.agents if isinstance(a, CitizenAgent)]
+        assert len(citizen_agents) == 50
         for agent in model.schedule.agents:
             assert agent.home_node in model.network.g.nodes
             node_data = model.network.g.nodes[agent.home_node]

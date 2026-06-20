@@ -135,8 +135,10 @@ class FakeSimEngine:
             * self._bus_capacity_mult
         )
         auto = max(0.05, 0.12 + 0.06 * rain + jitter)
+        bike_share = max(0.01, 0.03 - 0.02 * rain + jitter * 0.5)
+        e_rickshaw = max(0.02, 0.06 + 0.01 * rain + jitter * 0.5)
 
-        total = walk + bike + car + metro + bus + auto
+        total = walk + bike + car + metro + bus + auto + bike_share + e_rickshaw
         share = {
             Mode.walk: walk / total,
             Mode.bike: bike / total,
@@ -144,13 +146,23 @@ class FakeSimEngine:
             Mode.metro: metro / total,
             Mode.bus: bus / total,
             Mode.auto: auto / total,
+            Mode.bike_share: bike_share / total,
+            Mode.e_rickshaw: e_rickshaw / total,
         }
 
         base_commute = 28.0
         avg_commute = base_commute * (1 + 0.6 * rain + 0.5 * phase + 0.3 * metro_penalty)
         congestion = min(1.0, 0.2 + 0.5 * phase + 0.5 * rain + 0.2 * metro_penalty)
         metro_load = min(1.0, (0.3 + 0.5 * phase + 0.4 * rain + metro_penalty)) * 100
+        bus_load = min(1.0, (0.2 + 0.4 * phase + 0.3 * rain + metro_penalty * 0.5)) * 100
         commuting = int(self.config.population * phase)
+
+        # Simple AQI estimate from mode share
+        car_share = share.get(Mode.car, 0.0)
+        auto_share = share.get(Mode.auto, 0.0)
+        bus_share = share.get(Mode.bus, 0.0)
+        # Weighted emission proxy
+        aqi = min(500.0, (car_share * 0.045 + auto_share * 0.030 + bus_share * 0.010) * commuting * 50)
 
         return AggregateMetrics(
             tick=self._tick,
@@ -159,8 +171,10 @@ class FakeSimEngine:
             avg_commute_minutes=round(avg_commute, 2),
             mode_share={m: round(v, 4) for m, v in share.items()},
             metro_load_pct=round(metro_load, 2),
+            bus_load_pct=round(bus_load, 2),
             road_congestion_index=round(congestion, 3),
             agents_commuting=commuting,
+            aqi_estimate=round(aqi, 1),
         )
 
     def _update_grid(self) -> None:
