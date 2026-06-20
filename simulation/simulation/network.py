@@ -843,7 +843,8 @@ class MultiModalNetwork:
                         t = edge_data["length"] / WALK_SPEED
                 elif mode == "bike_share":
                     rain_penalty = 1.0 + 0.5 * self.weather_rain_intensity
-                    t = (edge_data["length"] / BIKE_SHARE_SPEED) * rain_penalty
+                    docking_overhead = 120.0 / max(1, len(path) - 1)  # seconds per edge (≈2 min per trip)
+                    t = (edge_data["length"] / BIKE_SHARE_SPEED) * rain_penalty + docking_overhead
                 elif mode == "e_rickshaw":
                     speed = E_RICKSHAW_SPEED * (
                         1.0 - 0.20 * self.weather_rain_intensity
