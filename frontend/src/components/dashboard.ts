@@ -131,6 +131,62 @@ export class DashboardApp {
     }
   }
 
+  // Inject a 5th stat card for SUB-01 Phase 1's `aqi_estimate`. Idempotent — runs once.
+  private ensureAqiCard() {
+    if (document.getElementById('stat-aqi')) return;
+    const grid = document.getElementById('analytics-grid');
+    if (!grid) return;
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.innerHTML = `
+      <div class="chart-card-header">
+        <span>AIR QUALITY (AQI)</span>
+        <span class="chart-delta stable" id="stat-aqi-band">—</span>
+      </div>
+      <div class="chart-value-display" id="stat-aqi">0</div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: var(--space-1);">
+        Estimated from mode-share emissions · CPCB scale 0–500
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+
+  private renderAqi(aqi: number) {
+    this.ensureAqiCard();
+    const el = document.getElementById('stat-aqi');
+    const band = document.getElementById('stat-aqi-band');
+    if (el) el.textContent = Math.round(aqi).toString();
+    if (band) {
+      // CPCB AQI bands — keeps the label aligned with how Indian agencies report it.
+      let label = 'Good';
+      let cls = 'chart-delta stable';
+      if (aqi > 400) { label = 'Severe'; cls = 'chart-delta negative'; }
+      else if (aqi > 300) { label = 'Very Poor'; cls = 'chart-delta negative'; }
+      else if (aqi > 200) { label = 'Poor'; cls = 'chart-delta negative'; }
+      else if (aqi > 100) { label = 'Moderate'; cls = 'chart-delta'; }
+      else if (aqi > 50) { label = 'Satisfactory'; cls = 'chart-delta stable'; }
+      band.textContent = label;
+      band.className = cls;
+    }
+  }
+
+  // Append bus load as a small annotation under the existing "METRO STATIONS AT CAP"
+  // card so the two transit-mode loads sit next to each other.
+  private renderBusLoad(pct: number) {
+    const metroValue = document.getElementById('stat-metro');
+    const host = metroValue?.parentElement;
+    if (!host) return;
+    let line = document.getElementById('stat-bus-load');
+    if (!line) {
+      line = document.createElement('div');
+      line.id = 'stat-bus-load';
+      line.style.cssText =
+        'font-size: 11px; color: var(--text-muted); margin-top: var(--space-1);';
+      host.appendChild(line);
+    }
+    line.textContent = `Bus load: ${pct.toFixed(0)}%`;
+  }
+
   // Append real backend facts (id, seed, population) to the scenario panel so the
   // operator can see exactly what they're connected to — not just the marketing blurb.
   private renderScenarioFacts(summary: {
@@ -221,16 +277,26 @@ export class DashboardApp {
     }
 
     // Map backend fields → dashboard widgets.
-    //   avg_commute_minutes        → "AVG COMMUTE DELAY" (minutes)
-    //   metro+bus mode share       → "TRANSIT MODE SHARE" (%)
-    //   road_congestion_index*100  → "GRIDLOCK INDEX" (%)
-    //   metro_load_pct → out of 42 → "METRO STATIONS AT CAP"
+    //   avg_commute_minutes                            → "AVG COMMUTE DELAY" (minutes)
+    //   (metro + bus + bike_share + e_rickshaw) share  → "TRANSIT MODE SHARE" (%)
+    //                                                    [SUB-01 Phase 1 added the latter two]
+    //   road_congestion_index * 100                    → "GRIDLOCK INDEX" (%)
+    //   metro_load_pct / 100 * 42                      → "METRO STATIONS AT CAP"
+    //   aqi_estimate                                   → "AIR QUALITY (AQI)" — injected card
+    //   bus_load_pct                                   → annotation under metro card
     const ms = m.mode_share ?? {};
-    const transit = ((ms.metro ?? 0) + (ms.bus ?? 0)) * 100;
+    const transit =
+      ((ms.metro ?? 0) + (ms.bus ?? 0) + (ms.bike_share ?? 0) + (ms.e_rickshaw ?? 0)) * 100;
     const delay = m.avg_commute_minutes ?? 0;
     const gridlock = (m.road_congestion_index ?? 0) * 100;
     const metroCap = Math.round(((m.metro_load_pct ?? 0) / 100) * 42);
     this.chartsManager.recordTick(delay, transit, gridlock, metroCap);
+
+    // Render the two SUB-01 Phase 1 metrics that the 4 stock cards don't cover.
+    const aqi = m.aqi_estimate ?? 0;
+    const busLoad = m.bus_load_pct ?? 0;
+    this.renderAqi(aqi);
+    this.renderBusLoad(busLoad);
 
     // Weather lives inside metrics (rain_intensity), not a separate field.
     const rain = m.rain_intensity ?? 0;
