@@ -95,7 +95,15 @@ def test_export_csv_after_ticks(client):
     lines = resp.text.strip().splitlines()
     assert len(lines) >= 2  # header + at least one row
     assert lines[0].startswith("tick,sim_time_minutes,rain_intensity")
-    assert "mode_share_metro" in lines[0]
+    # New wire fields from SUB-01 Phase 1 must round-trip through export.
+    for col in (
+        "bus_load_pct",
+        "aqi_estimate",
+        "mode_share_metro",
+        "mode_share_bike_share",
+        "mode_share_e_rickshaw",
+    ):
+        assert col in lines[0], f"missing column {col} in CSV header"
 
 
 def test_export_json_round_trip(client):
