@@ -24,9 +24,11 @@ CITY_LON = 77.2197
 # Default travel speed constants (meters per second)
 WALK_SPEED = 1.4  # ~5 km/h
 BIKE_SPEED = 4.2  # ~15 km/h
+BIKE_SHARE_SPEED = 3.8  # ~14 km/h (slightly slower due to heavier docked bikes)
 BUS_BASE_SPEED = 6.0  # ~22 km/h
 METRO_SPEED = 12.0  # ~43 km/h
 CAR_FREE_FLOW_SPEED = 11.0  # ~40 km/h
+E_RICKSHAW_SPEED = 3.3  # ~12 km/h
 
 # Highway classification → (capacity vehicles/tick, free_flow_speed m/s)
 # Capacity reflects PCU (Passenger Car Units) per lane per hour, scaled to
@@ -771,6 +773,27 @@ class MultiModalNetwork:
                         return edge_attr["length"] / WALK_SPEED
                 return 1e9
 
+            elif mode == "bike_share":
+                # Bike-share uses road network at slightly slower bike speed
+                if etype != "road":
+                    return 1e9
+                rain_penalty = 1.0 + 0.5 * self.weather_rain_intensity
+                return (edge_attr["length"] / BIKE_SHARE_SPEED) * rain_penalty
+
+            elif mode == "e_rickshaw":
+                # E-rickshaws use road network, subject to lighter congestion
+                if etype != "road":
+                    return 1e9
+                # Lighter BPR impact: e-rickshaws are smaller vehicles
+                length = edge_attr["length"]
+                speed = E_RICKSHAW_SPEED * (1.0 - 0.20 * self.weather_rain_intensity)
+                t_zero = length / max(1.0, speed)
+                flow = edge_attr.get("flow", 0)
+                capacity = edge_attr.get("capacity", 100.0)
+                # Lighter congestion sensitivity (alpha=0.10)
+                congestion_term = min(5.0, 0.10 * ((flow / max(10.0, capacity)) ** 3.0))
+                return t_zero * (1.0 + congestion_term)
+
             return 1e9
 
         try:
@@ -814,6 +837,19 @@ class MultiModalNetwork:
                         t = edge_data["length"] / BUS_BASE_SPEED
                     else:
                         t = edge_data["length"] / WALK_SPEED
+                elif mode == "bike_share":
+                    rain_penalty = 1.0 + 0.5 * self.weather_rain_intensity
+                    docking_overhead = 120.0 / max(
+                        1, len(path) - 1
+                    )  # seconds per edge (≈2 min per trip)
+                    t = (
+                        edge_data["length"] / BIKE_SHARE_SPEED
+                    ) * rain_penalty + docking_overhead
+                elif mode == "e_rickshaw":
+                    speed = E_RICKSHAW_SPEED * (
+                        1.0 - 0.20 * self.weather_rain_intensity
+                    )
+                    t = edge_data["length"] / max(1.0, speed)
                 else:
                     t = edge_data["length"] / WALK_SPEED
 
