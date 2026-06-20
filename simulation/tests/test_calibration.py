@@ -41,10 +41,8 @@ def test_new_modes_in_mode_share():
     for _ in range(110):
         snapshot = engine.step()
 
-    # bike_share and e_rickshaw should be in the mode share dict
-    mode_share = snapshot.metrics.mode_share
-    assert "bike_share" in mode_share or len(mode_share) > 0
-    assert "e_rickshaw" in mode_share or len(mode_share) > 0
+    assert "bike_share" in mode_share
+    assert "e_rickshaw" in mode_share
 
 
 def test_multi_day_reset():
