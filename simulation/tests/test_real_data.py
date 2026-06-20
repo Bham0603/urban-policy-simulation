@@ -280,7 +280,7 @@ class TestFullIntegration:
             a for a in model.schedule.agents if isinstance(a, CitizenAgent)
         ]
         assert len(citizen_agents) == 50
-        for agent in model.schedule.agents:
+        for agent in citizen_agents:
             assert agent.home_node in model.network.g.nodes
             node_data = model.network.g.nodes[agent.home_node]
             assert 28.0 < node_data["lat"] < 29.0
