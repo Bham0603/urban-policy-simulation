@@ -297,7 +297,7 @@ class UtilityWeights:
         if occupation == Occupation.OFFICE_EXECUTIVE:
             return UtilityWeights(
                 beta_time=-0.15,
-                beta_cost=-0.012,   # raised from -0.002 to penalise car cost
+                beta_cost=-0.012,  # raised from -0.002 to penalise car cost
                 beta_comfort=1.8,
                 beta_weather=-0.4,
                 beta_habit=0.4,
@@ -305,7 +305,7 @@ class UtilityWeights:
         elif occupation == Occupation.STUDENT:
             return UtilityWeights(
                 beta_time=-0.04,
-                beta_cost=-0.06,    # slightly lowered from -0.08
+                beta_cost=-0.06,  # slightly lowered from -0.08
                 beta_comfort=0.1,
                 beta_weather=-1.5,
                 beta_habit=0.3,
@@ -313,7 +313,7 @@ class UtilityWeights:
         elif occupation == Occupation.BLUE_COLLAR_WORKER:
             return UtilityWeights(
                 beta_time=-0.10,
-                beta_cost=-0.04,    # slightly lowered from -0.05
+                beta_cost=-0.04,  # slightly lowered from -0.05
                 beta_comfort=0.2,
                 beta_weather=-1.2,
                 beta_habit=0.5,
@@ -321,7 +321,7 @@ class UtilityWeights:
         elif occupation == Occupation.GIG_WORKER:
             return UtilityWeights(
                 beta_time=-0.18,
-                beta_cost=-0.05,    # slightly lowered from -0.06
+                beta_cost=-0.05,  # slightly lowered from -0.06
                 beta_comfort=0.1,
                 beta_weather=-1.0,
                 beta_habit=0.2,
@@ -329,7 +329,7 @@ class UtilityWeights:
         elif occupation == Occupation.RETIRED_CITIZEN:
             return UtilityWeights(
                 beta_time=-0.03,
-                beta_cost=-0.025,   # slightly lowered from -0.03
+                beta_cost=-0.025,  # slightly lowered from -0.03
                 beta_comfort=1.2,
                 beta_weather=-2.5,
                 beta_habit=0.6,
@@ -346,11 +346,19 @@ class UtilityWeights:
 _MODE_PROFILE: dict[str, tuple[float, float, float]] = {
     "walk": (12.0, 0.0, 0.30),
     "bike": (4.0, 0.5, 0.40),
-    "bus": (5.0, 1.2, 0.55),       # lowered cost ₹1.5→₹1.2, raised comfort 0.45→0.55 (DTC subsidy)
-    "metro": (3.0, 2.5, 0.65),     # lowered cost ₹3→₹2.5 (DMRC subsidised)
+    "bus": (
+        5.0,
+        1.2,
+        0.55,
+    ),  # lowered cost ₹1.5→₹1.2, raised comfort 0.45→0.55 (DTC subsidy)
+    "metro": (3.0, 2.5, 0.65),  # lowered cost ₹3→₹2.5 (DMRC subsidised)
     "auto": (3.5, 12.0, 0.55),
-    "car": (3.0, 10.0, 0.75),      # raised cost ₹8→₹10 (fuel + parking in central Delhi)
-    "bike_share": (4.5, 1.0, 0.35),  # slightly slower than owned bike, ₹1/km (docking time)
+    "car": (3.0, 10.0, 0.75),  # raised cost ₹8→₹10 (fuel + parking in central Delhi)
+    "bike_share": (
+        4.5,
+        1.0,
+        0.35,
+    ),  # slightly slower than owned bike, ₹1/km (docking time)
     "e_rickshaw": (5.0, 4.0, 0.50),  # ~12 km/h, ₹4/km, moderate comfort
 }
 
@@ -362,8 +370,8 @@ _RAIN_EXPOSURE: dict[str, float] = {
     "bus": 0.2,
     "metro": 0.0,
     "car": 0.0,
-    "bike_share": 1.0,   # fully exposed
-    "e_rickshaw": 0.6,   # partially covered
+    "bike_share": 1.0,  # fully exposed
+    "e_rickshaw": 0.6,  # partially covered
 }
 
 
@@ -920,14 +928,13 @@ class CitizenAgent(mesa.Agent):
             return
 
         # Check that model has shop infrastructure
-        if not hasattr(self.model, 'stalls') or not hasattr(self.model, 'stores'):
+        if not hasattr(self.model, "stalls") or not hasattr(self.model, "stores"):
             return
 
         # Generate a shopping need based on occupation/income
         product_types = ["food", "clothes", "accessories"]
         weights = [0.6, 0.25, 0.15]
         product_type = product_types[int(rng.choice(len(product_types), p=weights))]
-        urgency = float(rng.uniform(0.3, 1.0))
 
         # Build alternatives from nearby stalls and stores
         alternatives = self._build_shop_alternatives(product_type)
@@ -935,11 +942,15 @@ class CitizenAgent(mesa.Agent):
             return
 
         # Use the model's ShopChoiceModel to choose
-        if not hasattr(self.model, 'shop_choice_model') or self.model.shop_choice_model is None:
+        if (
+            not hasattr(self.model, "shop_choice_model")
+            or self.model.shop_choice_model is None
+        ):
             return
 
         # Build a lightweight agent-like object for the ShopChoiceModel
         from simulation.economic_agents import _AgentProxy
+
         proxy = _AgentProxy(
             income_bracket=self.income_bracket,
             schedule=self.schedule,
@@ -955,29 +966,33 @@ class CitizenAgent(mesa.Agent):
 
         if chosen.shop_type == "delivery":
             # Delivery — no physical travel, dispatch delivery agent
-            if hasattr(self.model, 'delivery_agents') and self.model.delivery_agents:
+            if hasattr(self.model, "delivery_agents") and self.model.delivery_agents:
                 delivery = list(self.model.delivery_agents.values())[0]
                 fee = delivery.get_delivery_fee(30.0, rain)
                 # Agent gets charged but doesn't move
-                self.shopping_needs.append({
-                    "product": product_type,
-                    "shop_id": chosen.shop_id,
-                    "type": "delivery",
-                    "cost": fee,
-                    "tick": self.model.current_tick,
-                })
+                self.shopping_needs.append(
+                    {
+                        "product": product_type,
+                        "shop_id": chosen.shop_id,
+                        "type": "delivery",
+                        "cost": fee,
+                        "tick": self.model.current_tick,
+                    }
+                )
         else:
             # Physical shopping — record as a transaction
-            self.shopping_needs.append({
-                "product": product_type,
-                "shop_id": chosen.shop_id,
-                "type": chosen.shop_type,
-                "cost": chosen.price_level * 100.0,
-                "tick": self.model.current_tick,
-            })
+            self.shopping_needs.append(
+                {
+                    "product": product_type,
+                    "shop_id": chosen.shop_id,
+                    "type": chosen.shop_type,
+                    "cost": chosen.price_level * 100.0,
+                    "tick": self.model.current_tick,
+                }
+            )
 
             # If the shop is a stall, reduce its inventory
-            if chosen.shop_id in getattr(self.model, 'stalls', {}):
+            if chosen.shop_id in getattr(self.model, "stalls", {}):
                 stall = self.model.stalls[chosen.shop_id]
                 stall.inventory = max(0.0, stall.inventory - 0.05)
 
@@ -1001,7 +1016,7 @@ class CitizenAgent(mesa.Agent):
         agent_lon = agent_data.get("lon", 0.0)
 
         # Scan stalls
-        for stall_id, stall in getattr(self.model, 'stalls', {}).items():
+        for stall_id, stall in getattr(self.model, "stalls", {}).items():
             if stall.is_disrupted_today or stall.inventory <= 0:
                 continue
             # Check product match
@@ -1018,7 +1033,10 @@ class CitizenAgent(mesa.Agent):
             stall_data = net.g.nodes.get(str(stall.current_location), {})
             stall_lat = stall_data.get("lat", 0.0)
             stall_lon = stall_data.get("lon", 0.0)
-            dist_km = math.sqrt((agent_lat - stall_lat)**2 + (agent_lon - stall_lon)**2) * 111.0
+            dist_km = (
+                math.sqrt((agent_lat - stall_lat) ** 2 + (agent_lon - stall_lon) ** 2)
+                * 111.0
+            )
 
             if dist_km > 5.0:
                 continue
@@ -1029,44 +1047,53 @@ class CitizenAgent(mesa.Agent):
                 "accessories": "accessories_stall",
             }
 
-            alternatives.append(ShopAlternative(
-                shop_id=stall_id,
-                shop_type=stall_type_map.get(stall.stall_type, "food_stall"),
-                distance_km=round(dist_km, 2),
-                travel_time_min=round(dist_km * 5.0, 1),  # rough estimate
-                price_level=0.3,  # stalls are cheap
-                product_match=match,
-            ))
+            alternatives.append(
+                ShopAlternative(
+                    shop_id=stall_id,
+                    shop_type=stall_type_map.get(stall.stall_type, "food_stall"),
+                    distance_km=round(dist_km, 2),
+                    travel_time_min=round(dist_km * 5.0, 1),  # rough estimate
+                    price_level=0.3,  # stalls are cheap
+                    product_match=match,
+                )
+            )
 
         # Scan stores
-        for store_id, store in getattr(self.model, 'stores', {}).items():
+        for store_id, store in getattr(self.model, "stores", {}).items():
             if store.inventory <= 0:
                 continue
             store_data = net.g.nodes.get(str(store.store_node), {})
             store_lat = store_data.get("lat", 0.0)
             store_lon = store_data.get("lon", 0.0)
-            dist_km = math.sqrt((agent_lat - store_lat)**2 + (agent_lon - store_lon)**2) * 111.0
+            dist_km = (
+                math.sqrt((agent_lat - store_lat) ** 2 + (agent_lon - store_lon) ** 2)
+                * 111.0
+            )
 
             if dist_km > 5.0:
                 continue
 
-            alternatives.append(ShopAlternative(
-                shop_id=store_id,
-                shop_type="formal_store",
-                distance_km=round(dist_km, 2),
-                travel_time_min=round(dist_km * 3.5, 1),
-                price_level=0.7,  # formal stores are pricier
-                product_match=0.8,  # stores carry everything
-            ))
+            alternatives.append(
+                ShopAlternative(
+                    shop_id=store_id,
+                    shop_type="formal_store",
+                    distance_km=round(dist_km, 2),
+                    travel_time_min=round(dist_km * 3.5, 1),
+                    price_level=0.7,  # formal stores are pricier
+                    product_match=0.8,  # stores carry everything
+                )
+            )
 
         # Always add delivery option
-        alternatives.append(ShopAlternative(
-            shop_id=-1,
-            shop_type="delivery",
-            distance_km=0.0,
-            travel_time_min=30.0,
-            price_level=0.5,
-            product_match=0.7,
-        ))
+        alternatives.append(
+            ShopAlternative(
+                shop_id=-1,
+                shop_type="delivery",
+                distance_km=0.0,
+                travel_time_min=30.0,
+                price_level=0.5,
+                product_match=0.7,
+            )
+        )
 
         return alternatives

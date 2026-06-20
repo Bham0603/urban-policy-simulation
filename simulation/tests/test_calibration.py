@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.models.schemas import ScenarioConfig, AggregateMetrics
+from app.models.schemas import ScenarioConfig
 from simulation.engine import MesaSimEngine, UrbanModel
 from simulation.calibration import (
     validate_mode_share,
@@ -61,13 +61,15 @@ def test_multi_day_reset():
     # After 25 simulated hours, agents should have gone through a day reset.
     # At minute 1500, sim_time % 1440 = 60 minutes past midnight (1:00 AM)
     # All agents should be AT_HOME at this early hour
-    citizen_agents = [a for a in engine.model.schedule.agents if isinstance(a, CitizenAgent)]
-    at_home = sum(
-        1 for a in citizen_agents if a.state == "AT_HOME"
-    )
+    citizen_agents = [
+        a for a in engine.model.schedule.agents if isinstance(a, CitizenAgent)
+    ]
+    at_home = sum(1 for a in citizen_agents if a.state == "AT_HOME")
     total = len(citizen_agents)
     # At 1:00 AM, vast majority should be at home
-    assert at_home / total > 0.8, f"Only {at_home}/{total} agents at home after day reset"
+    assert (
+        at_home / total > 0.8
+    ), f"Only {at_home}/{total} agents at home after day reset"
 
 
 def test_agent_reset_for_new_day():

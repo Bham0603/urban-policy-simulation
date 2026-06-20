@@ -162,7 +162,9 @@ class FakeSimEngine:
         auto_share = share.get(Mode.auto, 0.0)
         bus_share = share.get(Mode.bus, 0.0)
         # Weighted emission proxy
-        aqi = min(500.0, (car_share * 0.045 + auto_share * 0.030 + bus_share * 0.010) * commuting * 50)
+        aqi = min(
+            500.0, (car_share * 0.045 + auto_share * 0.030 + bus_share * 0.010) * commuting * 50
+        )
 
         return AggregateMetrics(
             tick=self._tick,

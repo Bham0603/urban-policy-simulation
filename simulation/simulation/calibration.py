@@ -13,12 +13,12 @@ from __future__ import annotations
 # Source: data/validation_data/mode_share_delhi.csv
 # ---------------------------------------------------------------------------
 DELHI_CALIBRATION_TARGETS: dict[str, float] = {
-    "metro": 0.155,       # 15.5% — DMRC ridership share
-    "bus": 0.180,         # 18.0% — DTC + cluster bus
-    "bike": 0.120,        # 12.0% — two-wheeler (proxy from 28.5% split)
-    "car": 0.120,         # 12.0% — private car
-    "walk": 0.140,        # 14.0% — walk (split from Walk/Auto 26%)
-    "auto": 0.120,        # 12.0% — auto-rickshaw (split from Walk/Auto 26%)
+    "metro": 0.155,  # 15.5% — DMRC ridership share
+    "bus": 0.180,  # 18.0% — DTC + cluster bus
+    "bike": 0.120,  # 12.0% — two-wheeler (proxy from 28.5% split)
+    "car": 0.120,  # 12.0% — private car
+    "walk": 0.140,  # 14.0% — walk (split from Walk/Auto 26%)
+    "auto": 0.120,  # 12.0% — auto-rickshaw (split from Walk/Auto 26%)
     "bike_share": 0.030,  #  3.0% — public bike-share (emerging mode)
     "e_rickshaw": 0.065,  #  6.5% — e-rickshaw (emerging mode)
 }

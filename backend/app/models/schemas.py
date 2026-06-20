@@ -134,7 +134,9 @@ class AggregateMetrics(BaseModel):
     bus_load_pct: float = 0.0
     road_congestion_index: float = 0.0
     agents_commuting: int = 0
-    aqi_estimate: float = Field(0.0, ge=0.0, le=500.0, description="Estimated AQI (0-500) from mode-share emissions.")
+    aqi_estimate: float = Field(
+        0.0, ge=0.0, le=500.0, description="Estimated AQI (0-500) from mode-share emissions."
+    )
 
 
 class MetricSeries(BaseModel):

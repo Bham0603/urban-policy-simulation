@@ -8,7 +8,6 @@ import numpy as np
 
 if TYPE_CHECKING:
     from simulation.engine import UrbanModel
-    from simulation.agents import CitizenAgent
 
 # ---------------------------------------------------------------------------
 # Calibrated Delhi mode share targets (RITES 2018 survey)
@@ -36,10 +35,10 @@ _ALL_MODES = ["walk", "bike", "bus", "metro", "auto", "car", "bike_share", "e_ri
 _PM25_G_PER_KM: dict[str, float] = {
     "walk": 0.0,
     "bike": 0.0,
-    "bus": 0.010,       # per-passenger (shared occupancy)
-    "metro": 0.0,       # electric rail
-    "auto": 0.030,      # 2-stroke / CNG auto-rickshaw
-    "car": 0.045,       # petrol/diesel private car
+    "bus": 0.010,  # per-passenger (shared occupancy)
+    "metro": 0.0,  # electric rail
+    "auto": 0.030,  # 2-stroke / CNG auto-rickshaw
+    "car": 0.045,  # petrol/diesel private car
     "bike_share": 0.0,
     "e_rickshaw": 0.0,  # battery-electric
 }
@@ -60,6 +59,7 @@ def _estimate_aqi(total_pm25_grams: float) -> float:
 def calculate_metrics(model: UrbanModel) -> dict:
     """Calculate aggregate metrics for the current tick."""
     from simulation.agents import CitizenAgent
+
     agents = [a for a in model.schedule.agents if isinstance(a, CitizenAgent)]
     net = model.network
 

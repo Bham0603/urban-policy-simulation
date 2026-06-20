@@ -7,7 +7,6 @@ with proper step() methods and dynamic restocking via the routing engine.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from collections import deque
 from typing import TYPE_CHECKING
@@ -17,7 +16,6 @@ import numpy as np
 
 if TYPE_CHECKING:
     from simulation.engine import UrbanModel
-    from simulation.network import MultiModalNetwork
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +92,9 @@ class ShopChoiceModel:
                 "clothes_stall",
                 "accessories_stall",
             )
-            rain_penalty = (1.5 * rain_intensity) if is_stall else (0.8 * rain_intensity)
+            rain_penalty = (
+                (1.5 * rain_intensity) if is_stall else (0.8 * rain_intensity)
+            )
 
         return (
             self.beta_price * alt.price_level * cost_scale
@@ -160,7 +160,12 @@ class RetailMemory:
 
     def record_disruption(self, location_node: int) -> None:
         self.sales_history.append(
-            SalesOutcome(revenue=0.0, customers_served=0, foot_traffic=0, location_node=location_node)
+            SalesOutcome(
+                revenue=0.0,
+                customers_served=0,
+                foot_traffic=0,
+                location_node=location_node,
+            )
         )
         self.frustration = min(5.0, self.frustration + 1.5)
 
@@ -179,7 +184,9 @@ class WholesaleSupplier:
         self.inventory: float = 1.0
         self.base_wholesale_price: float = 20.0
 
-    def sell_stock(self, buyer_cash: float, quantity: float = 1.0) -> tuple[float, float]:
+    def sell_stock(
+        self, buyer_cash: float, quantity: float = 1.0
+    ) -> tuple[float, float]:
         price_per_unit = self.base_wholesale_price
         max_qty = min(quantity, self.inventory)
         total_cost = max_qty * price_per_unit
@@ -267,7 +274,11 @@ class MesaStallOwner(mesa.Agent):
                     revenue=revenue,
                     customers_served=foot_traffic,
                     foot_traffic=foot_traffic,
-                    location_node=int(self.current_location) if str(self.current_location).isdigit() else 0,
+                    location_node=(
+                        int(self.current_location)
+                        if str(self.current_location).isdigit()
+                        else 0
+                    ),
                 )
             )
 
@@ -284,7 +295,9 @@ class MesaStallOwner(mesa.Agent):
         self.is_disrupted_today = bool(rng.random() < self.disruption_probability)
         if self.is_disrupted_today:
             self.retail_memory.record_disruption(
-                int(self.current_location) if str(self.current_location).isdigit() else 0
+                int(self.current_location)
+                if str(self.current_location).isdigit()
+                else 0
             )
 
     def _revenue_per_customer(self, base_price: float = 50.0) -> float:
@@ -321,14 +334,15 @@ class MesaStallOwner(mesa.Agent):
             travel_time_min *= 2.0
 
         # Execute purchase
-        cost, qty = supplier.sell_stock(self.cash_balance, quantity=(1.0 - self.inventory))
+        cost, qty = supplier.sell_stock(
+            self.cash_balance, quantity=(1.0 - self.inventory)
+        )
         self.cash_balance = max(0.0, self.cash_balance - cost)
         self.inventory = min(1.0, self.inventory + qty)
 
     def _maybe_relocate(self) -> None:
         """Relocate to a higher-traffic node if frustration is high."""
         net = self.model.network
-        rng = self.model._np_rng
 
         # Get metro station nodes and high-traffic intersections as candidates
         candidates = []
@@ -412,7 +426,9 @@ class MesaStoreManager(mesa.Agent):
         if rain > 0.4:
             travel_time_min *= 2.0
 
-        cost, qty = supplier.sell_stock(self.cash_balance, quantity=(1.0 - self.inventory))
+        cost, qty = supplier.sell_stock(
+            self.cash_balance, quantity=(1.0 - self.inventory)
+        )
         self.cash_balance = max(0.0, self.cash_balance - cost)
         self.inventory = min(1.0, self.inventory + qty)
 
@@ -476,9 +492,13 @@ class MesaStoreStaff(mesa.Agent):
                 self.state = "AT_WORK"
                 # Record arrival
                 if current_time > self.shift_start:
-                    self.lateness_frustration = min(5.0, self.lateness_frustration + 0.5)
+                    self.lateness_frustration = min(
+                        5.0, self.lateness_frustration + 0.5
+                    )
                 else:
-                    self.lateness_frustration = max(0.0, self.lateness_frustration - 0.2)
+                    self.lateness_frustration = max(
+                        0.0, self.lateness_frustration - 0.2
+                    )
 
         elif self.state == "AT_WORK":
             if current_time >= self.shift_end:

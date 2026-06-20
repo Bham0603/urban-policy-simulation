@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from app.models.schemas import ScenarioConfig, Event, EventType
 from simulation.engine import MesaSimEngine, UrbanModel
-from simulation.agents import Occupation, Household, AgentMemory, ActivitySchedule, CitizenAgent
+from simulation.agents import (
+    Occupation,
+    Household,
+    AgentMemory,
+    ActivitySchedule,
+    CitizenAgent,
+)
 
 
 def test_model_initialization():

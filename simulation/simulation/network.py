@@ -780,7 +780,9 @@ class MultiModalNetwork:
                 rain_penalty = 1.0 + 0.5 * self.weather_rain_intensity
                 # Add ~2 min docking overhead amortised per edge
                 docking_overhead = 120.0 / max(1, len(self.g.edges))  # seconds per edge
-                return (edge_attr["length"] / BIKE_SHARE_SPEED) * rain_penalty + docking_overhead
+                return (
+                    edge_attr["length"] / BIKE_SHARE_SPEED
+                ) * rain_penalty + docking_overhead
 
             elif mode == "e_rickshaw":
                 # E-rickshaws use road network, subject to lighter congestion
@@ -843,7 +845,9 @@ class MultiModalNetwork:
                     rain_penalty = 1.0 + 0.5 * self.weather_rain_intensity
                     t = (edge_data["length"] / BIKE_SHARE_SPEED) * rain_penalty
                 elif mode == "e_rickshaw":
-                    speed = E_RICKSHAW_SPEED * (1.0 - 0.20 * self.weather_rain_intensity)
+                    speed = E_RICKSHAW_SPEED * (
+                        1.0 - 0.20 * self.weather_rain_intensity
+                    )
                     t = edge_data["length"] / max(1.0, speed)
                 else:
                     t = edge_data["length"] / WALK_SPEED

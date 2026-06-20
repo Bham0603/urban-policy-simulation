@@ -195,18 +195,25 @@ class UrbanModel(mesa.Model):
         hh_id = 0
 
         for _, row in df.iterrows():
-            income = int(row['income_bracket'])
-            age = int(row['age'])
-            has_car = bool(row['has_car'])
-            has_bike = bool(row['has_bike'])
-            has_metro_pass = bool(row['has_metro_pass'])
-            occ_str = str(row['occupation'])
+            income = int(row["income_bracket"])
+            age = int(row["age"])
+            has_car = bool(row["has_car"])
+            has_bike = bool(row["has_bike"])
+            has_metro_pass = bool(row["has_metro_pass"])
+            occ_str = str(row["occupation"])
             occupation = occ_map.get(occ_str, Occupation.BLUE_COLLAR_WORKER)
 
             # Node assignment (ensure strings for OSM IDs)
-            home_node = str(row['home_node'])
-            work_node = str(row['work_node']) if pd.notna(row['work_node']) and str(row['work_node']) != "nan" else None
-            if occupation == Occupation.UNEMPLOYED or occupation == Occupation.RETIRED_CITIZEN:
+            home_node = str(row["home_node"])
+            work_node = (
+                str(row["work_node"])
+                if pd.notna(row["work_node"]) and str(row["work_node"]) != "nan"
+                else None
+            )
+            if (
+                occupation == Occupation.UNEMPLOYED
+                or occupation == Occupation.RETIRED_CITIZEN
+            ):
                 work_node = None
 
             # Ensure home != work
@@ -233,12 +240,16 @@ class UrbanModel(mesa.Model):
             activities = [Activity(ActivityType.HOME, home_node, 0, 0)]
             leave_home = int(rng.normal(9 * 60, 30))
             if work_node:
-                activities.append(Activity(ActivityType.WORK, work_node, leave_home, 9 * 60))
+                activities.append(
+                    Activity(ActivityType.WORK, work_node, leave_home, 9 * 60)
+                )
                 activities[0].duration_min = leave_home
             else:
                 activities[0].duration_min = 24 * 60
 
-            schedule = ActivitySchedule(activities=activities, leave_home_min=leave_home)
+            schedule = ActivitySchedule(
+                activities=activities, leave_home_min=leave_home
+            )
 
             agent = CitizenAgent(
                 unique_id=agent_id,
@@ -289,8 +300,12 @@ class UrbanModel(mesa.Model):
             return
 
         # 1. Supplier
-        central_node = str(rng.choice(intersections)) if intersections else str(candidates[0])
-        self.supplier = WholesaleSupplier(supplier_id=999999, location_node=central_node)
+        central_node = (
+            str(rng.choice(intersections)) if intersections else str(candidates[0])
+        )
+        self.supplier = WholesaleSupplier(
+            supplier_id=999999, location_node=central_node
+        )
 
         agent_id_counter = 1000000
 
@@ -298,18 +313,26 @@ class UrbanModel(mesa.Model):
         stall_types = ["food", "clothes", "accessories"]
         stall_weights = [0.5, 0.3, 0.2]
         for _ in range(num_stalls):
-            home_node = str(rng.choice(intersections)) if intersections else str(rng.choice(candidates))
+            home_node = (
+                str(rng.choice(intersections))
+                if intersections
+                else str(rng.choice(candidates))
+            )
             vending_node = str(rng.choice(candidates))
             stype = stall_types[int(rng.choice(len(stall_types), p=stall_weights))]
-            
+
             stall = MesaStallOwner(
                 model=self,
                 stall_id=agent_id_counter,
                 home_node=home_node,
                 vending_node=vending_node,
                 stall_type=stype,
-                inventory_decay_rate=0.15 if stype == "food" else (0.02 if stype == "clothes" else 0.01),
-                disruption_probability=0.05 if stype == "food" else (0.08 if stype == "clothes" else 0.06),
+                inventory_decay_rate=(
+                    0.15 if stype == "food" else (0.02 if stype == "clothes" else 0.01)
+                ),
+                disruption_probability=(
+                    0.05 if stype == "food" else (0.08 if stype == "clothes" else 0.06)
+                ),
             )
             self.schedule.add(stall)
             self.stalls[agent_id_counter] = stall
@@ -317,13 +340,13 @@ class UrbanModel(mesa.Model):
             agent_id_counter += 1
 
         # 3. Stores & Staff
-        staff_per_store = max(1, num_staff // max(1, num_managers)) if num_managers > 0 else 0
+        staff_per_store = (
+            max(1, num_staff // max(1, num_managers)) if num_managers > 0 else 0
+        )
         for _ in range(num_managers):
             store_node = str(rng.choice(candidates))
             manager = MesaStoreManager(
-                model=self,
-                manager_id=agent_id_counter,
-                store_node=store_node
+                model=self, manager_id=agent_id_counter, store_node=store_node
             )
             self.schedule.add(manager)
             self.stores[agent_id_counter] = manager
@@ -331,12 +354,16 @@ class UrbanModel(mesa.Model):
             agent_id_counter += 1
 
             for _ in range(staff_per_store):
-                home_node = str(rng.choice(intersections)) if intersections else str(rng.choice(candidates))
+                home_node = (
+                    str(rng.choice(intersections))
+                    if intersections
+                    else str(rng.choice(candidates))
+                )
                 staff = MesaStoreStaff(
                     model=self,
                     staff_id=agent_id_counter,
                     home_node=home_node,
-                    store_node=store_node
+                    store_node=store_node,
                 )
                 manager.staff_ids.append(agent_id_counter)
                 self.schedule.add(staff)
@@ -345,11 +372,13 @@ class UrbanModel(mesa.Model):
 
         # 4. Delivery Agents
         for _ in range(num_delivery):
-            home_node = str(rng.choice(intersections)) if intersections else str(rng.choice(candidates))
+            home_node = (
+                str(rng.choice(intersections))
+                if intersections
+                else str(rng.choice(candidates))
+            )
             delivery = MesaDeliveryAgent(
-                model=self,
-                delivery_id=agent_id_counter,
-                home_node=home_node
+                model=self, delivery_id=agent_id_counter, home_node=home_node
             )
             self.schedule.add(delivery)
             self.delivery_agents[agent_id_counter] = delivery
@@ -703,7 +732,8 @@ class UrbanModel(mesa.Model):
 
         # 2. Update physical road flow and travel times
         active_commuters = [
-            a for a in self.schedule.agents 
+            a
+            for a in self.schedule.agents
             if getattr(a, "state", None) == "COMMUTING" and hasattr(a, "current_route")
         ]
         self.network.update_road_congestion(active_commuters)
@@ -832,12 +862,19 @@ class MesaSimEngine:
             if hasattr(agent, "current_route"):
                 node_id = (
                     agent.current_route[agent.route_index]
-                    if (getattr(agent, "state", None) == "COMMUTING" and getattr(agent, "current_route", None))
+                    if (
+                        getattr(agent, "state", None) == "COMMUTING"
+                        and getattr(agent, "current_route", None)
+                    )
                     else agent.home_node
                 )
             else:
-                node_id = getattr(agent, "current_location", getattr(agent, "store_node", getattr(agent, "home_node", None)))
-            
+                node_id = getattr(
+                    agent,
+                    "current_location",
+                    getattr(agent, "store_node", getattr(agent, "home_node", None)),
+                )
+
             if not node_id:
                 continue
 
