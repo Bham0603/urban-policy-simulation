@@ -43,16 +43,16 @@ _PM25_G_PER_KM: dict[str, float] = {
     "e_rickshaw": 0.0,  # battery-electric
 }
 
-# AQI mapping: total PM2.5 grams emitted per tick → AQI 0-500.
+# AQI mapping: per-capita PM2.5 grams emitted per tick -> AQI 0-500.
 # Linear interpolation for Phase 1; based on rough per-capita scaling.
-_AQI_PM25_MAX_GRAMS = 0.5  # grams/tick threshold for AQI 500
+_AQI_PM25_MAX_GRAMS = 0.5  # grams per capita per tick threshold for AQI 500
 
 
-def _estimate_aqi(total_pm25_grams: float) -> float:
-    """Map total PM2.5 grams emitted per tick to an AQI-like 0-500 scale."""
-    if total_pm25_grams <= 0:
+def _estimate_aqi(pm25_grams_per_capita: float) -> float:
+    """Map per-capita PM2.5 grams emitted per tick to an AQI-like 0-500 scale."""
+    if pm25_grams_per_capita <= 0:
         return 0.0
-    ratio = total_pm25_grams / _AQI_PM25_MAX_GRAMS
+    ratio = pm25_grams_per_capita / _AQI_PM25_MAX_GRAMS
     return min(500.0, ratio * 500.0)
 
 
