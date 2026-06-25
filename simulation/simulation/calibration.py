@@ -88,3 +88,54 @@ def validate_avg_commute(
         True if within tolerance
     """
     return abs(actual - target) <= tolerance
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Baseline metric ranges (PRD §4, SUB-01, task 1.1)
+# Acceptance criteria for the default scenario_a configuration.
+# ---------------------------------------------------------------------------
+
+DELHI_BASELINE_RANGES: dict[str, tuple[float, float]] = {
+    "avg_commute_minutes": (25.0, 42.0),
+    "metro_load_pct_peak": (25.0, 70.0),
+    "road_congestion_index": (0.2, 0.8),
+}
+
+# Scenario A defaults — calibrated parameters that produce metrics within
+# DELHI_BASELINE_RANGES when run for ≥100 ticks at population 5000.
+SCENARIO_A_DEFAULTS: dict[str, float | int | str | bool] = {
+    "bus_capacity_pct": 1.0,
+    "fuel_price_delta_paise": 0,
+}
+
+
+def validate_baseline_metrics(
+    avg_commute_minutes: float,
+    metro_load_pct: float,
+    road_congestion_index: float,
+) -> dict[str, dict]:
+    """Validate simulation baseline metrics against PRD acceptance ranges.
+
+    Parameters:
+        avg_commute_minutes: simulated average commute time
+        metro_load_pct: simulated metro load at peak
+        road_congestion_index: simulated road congestion index
+
+    Returns:
+        dict mapping metric name → {"min", "max", "actual", "pass"}
+    """
+    actuals = {
+        "avg_commute_minutes": avg_commute_minutes,
+        "metro_load_pct_peak": metro_load_pct,
+        "road_congestion_index": road_congestion_index,
+    }
+    results = {}
+    for metric, (lo, hi) in DELHI_BASELINE_RANGES.items():
+        actual_val = actuals[metric]
+        results[metric] = {
+            "min": lo,
+            "max": hi,
+            "actual": round(actual_val, 4),
+            "pass": lo <= actual_val <= hi,
+        }
+    return results

@@ -727,6 +727,9 @@ class UrbanModel(mesa.Model):
                 if hasattr(agent, "adapt_behavior"):
                     agent.adapt_behavior()
 
+        # Phase 2: Reset per-tick metro boarding counters (SUB-03, task 3.2)
+        self.network.reset_metro_load_tracking()
+
         # 1. Step the scheduler (activates all agents)
         self.schedule.step()
 
@@ -737,6 +740,12 @@ class UrbanModel(mesa.Model):
             if getattr(a, "state", None) == "COMMUTING" and hasattr(a, "current_route")
         ]
         self.network.update_road_congestion(active_commuters)
+
+        # Phase 2: Advance bus vehicles for bunching simulation (SUB-03, task 3.3)
+        self.network.step_bus_vehicles(
+            tick=self.current_tick,
+            rain_intensity=self.network.weather_rain_intensity,
+        )
 
         # 3. Calculate aggregate metrics
         met_dict = calculate_metrics(self)
@@ -771,6 +780,29 @@ class MesaSimEngine:
         self.config = config
         self.model = UrbanModel(config, data_paths=data_paths)
         self._pending_events: list[Event] = []
+
+        # Phase 2: Auto-load DMRC schedule if available (SUB-03, task 3.1)
+        self._load_dmrc_schedule()
+
+    def _load_dmrc_schedule(self) -> None:
+        """Auto-discover and load the DMRC schedule JSON file.
+
+        Searches for dmrc_schedule.json in:
+        1. simulation/data/ relative to this module
+        2. data/ directory relative to this module
+        """
+        from pathlib import Path
+
+        # Try simulation/data/dmrc_schedule.json relative to this file
+        module_dir = Path(__file__).resolve().parent
+        candidates = [
+            module_dir.parent / "data" / "dmrc_schedule.json",
+            module_dir / "data" / "dmrc_schedule.json",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                self.model.network.load_dmrc_schedule(candidate)
+                return
 
     @property
     def current_tick(self) -> int:
