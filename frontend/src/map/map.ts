@@ -45,6 +45,11 @@ export class MapEngine {
   // Backend grid: latest density/congestion per cell, keyed by "lat,lon".
   // Diff frames only send changed cells, so we accumulate them ourselves.
   private heatmap: Map<string, HeatmapCell> = new Map();
+  private specialAgents: { id: number; type: string; lat: number; lon: number; is_busy: boolean }[] = [];
+
+  public ingestSpecialAgents(agents: any[]) {
+    this.specialAgents = Array.isArray(agents) ? agents : [];
+  }
 
   // Coordinate transform: backend cells sit on a 0.01° grid around Delhi.
   // 1° ≈ DEG_TO_PX canvas units at scale=1 puts the whole 10×10 grid inside the
@@ -404,6 +409,83 @@ export class MapEngine {
         ctx.fill();
       });
     }
+
+    // 5. Draw Special Agents and Entities (officers, workers, police, stores, stalls, supplier)
+    this.specialAgents.forEach(sa => {
+      const [x, y] = this.project(sa.lat, sa.lon);
+      
+      let color = '#ffffff';
+      let shadowColor = 'rgba(255, 255, 255, 0.5)';
+      let symbol = '';
+      let isSquare = false;
+      let radius = 6;
+
+      if (sa.type === 'officer') {
+        color = '#3b82f6'; // Bright Blue
+        shadowColor = 'rgba(59, 130, 246, 0.8)';
+        symbol = 'E';
+      } else if (sa.type === 'worker') {
+        color = '#f97316'; // Orange
+        shadowColor = 'rgba(249, 115, 22, 0.8)';
+        symbol = 'D';
+        if (sa.is_busy) {
+          // Pulse size if busy clearing floods
+          radius = 6 + Math.abs(Math.sin(Date.now() / 200)) * 2;
+        }
+      } else if (sa.type === 'police') {
+        color = '#10b981'; // Emerald Green
+        shadowColor = 'rgba(16, 185, 129, 0.8)';
+        symbol = 'T';
+      } else if (sa.type === 'supplier') {
+        color = '#8b5cf6'; // Violet wholesale market
+        shadowColor = 'rgba(139, 92, 246, 0.8)';
+        symbol = 'W';
+        radius = 8;
+      } else if (sa.type === 'store') {
+        color = '#06b6d4'; // Cyan formal store
+        shadowColor = 'rgba(6, 182, 212, 0.6)';
+        symbol = 'S';
+        isSquare = true;
+        radius = 7;
+      } else if (sa.type === 'stall') {
+        color = '#eab308'; // Yellow roadside stall
+        shadowColor = 'rgba(234, 179, 8, 0.6)';
+        symbol = 's';
+        isSquare = true;
+        radius = 5;
+        if (sa.is_busy) {
+          color = '#ef4444'; // Red if currently disrupted today
+        }
+      }
+
+      ctx.save();
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = shadowColor;
+      ctx.fillStyle = color;
+
+      ctx.beginPath();
+      if (isSquare) {
+        ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+      } else {
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      
+      // Draw white outline
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Draw centering text symbol inside shape
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${radius + 1}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbol, x, y);
+      ctx.restore();
+    });
 
     ctx.restore();
   }

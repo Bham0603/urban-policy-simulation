@@ -1,4 +1,5 @@
 // Analytics & Charts renderer - Custom light-weight high performance dashboard plots
+import { gsap } from 'gsap';
 
 export class ChartsManager {
   // Historical data buckets for sparklines/bars (limited to last 20 ticks)
@@ -103,7 +104,37 @@ export class ChartsManager {
     const delEl = document.getElementById(deltaId);
     if (!valEl || !delEl) return;
 
-    valEl.textContent = valueStr;
+    // Parse target numbers and suffixes
+    let targetNum = 0;
+    let suffix = '';
+    let decimals = 0;
+
+    if (valueStr.includes('/')) {
+      const parts = valueStr.split('/');
+      targetNum = parseFloat(parts[0]) || 0;
+      suffix = ' / ' + parts[1].trim();
+      decimals = 0;
+    } else {
+      targetNum = parseFloat(valueStr) || 0;
+      const match = valueStr.match(/[a-zA-Z%]+$/);
+      suffix = match ? match[0] : '';
+      decimals = valueStr.includes('.') ? valueStr.split('.')[1].length : 0;
+    }
+
+    const startNum = parseFloat(valEl.dataset.currentValue || '0') || 0;
+    valEl.dataset.currentValue = targetNum.toString();
+
+    // Smooth count-up micro-animation
+    const obj = { val: startNum };
+    gsap.to(obj, {
+      val: targetNum,
+      duration: 0.5,
+      ease: "power2.out",
+      onUpdate: () => {
+        valEl.textContent = `${obj.val.toFixed(decimals)}${suffix}`;
+      }
+    });
+
     delEl.textContent = delta.text;
     
     // Clear existing classes
