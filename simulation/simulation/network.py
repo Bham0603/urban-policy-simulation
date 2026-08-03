@@ -5,12 +5,19 @@ Represents roads, buses, and metro lines with routing and congestion capabilitie
 Supports two construction modes:
   1. Synthetic grid (default __init__) — 10×10 intersection grid for dev/testing
   2. Real OSM data (load_from_osm classmethod) — loads GraphML + metro/bus JSON
+
+Phase 2 additions:
+  - DMRC frequency schedule (peak/off-peak headways per line)
+  - Metro boarding capacity constraints with queuing/denial
+  - Bus vehicle simulation with emergent bunching
 """
 
 from __future__ import annotations
 
 import json
 import math
+import random as _stdlib_random
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
@@ -61,6 +68,70 @@ class SegmentInfo(TypedDict):
     bus_route: str | None
 
 
+# ---------------------------------------------------------------------------
+# Phase 2: DMRC Schedule data class (SUB-03, task 3.1)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class DMRCLineSchedule:
+    """Frequency schedule for a single DMRC metro line."""
+
+    name: str
+    peak_headway_sec: int
+    offpeak_headway_sec: int
+    peak_windows: list[tuple[int, int]]  # (start_min, end_min) pairs
+    first_train_min: int = 360  # 6:00 AM
+    last_train_min: int = 1380  # 11:00 PM
+    capacity_per_train: int = 1800
+    trains_per_direction: int = 8
+
+    def is_peak(self, sim_time_minutes: int) -> bool:
+        """Check if the given time falls within a peak window."""
+        t = sim_time_minutes % (24 * 60)
+        for start, end in self.peak_windows:
+            if start <= t <= end:
+                return True
+        return False
+
+    def get_headway_sec(self, sim_time_minutes: int) -> int:
+        """Return headway in seconds based on peak/off-peak."""
+        return self.peak_headway_sec if self.is_peak(sim_time_minutes) else self.offpeak_headway_sec
+
+    def get_wait_time_min(self, sim_time_minutes: int) -> float:
+        """Expected wait time = headway / 2, converted to minutes."""
+        t = sim_time_minutes % (24 * 60)
+        if t < self.first_train_min or t > self.last_train_min:
+            return 60.0  # No service — long wait (effectively blocked)
+        return self.get_headway_sec(sim_time_minutes) / 2.0 / 60.0
+
+    def get_capacity_this_tick(self, sim_time_minutes: int) -> int:
+        """Return total boarding capacity for this tick (trains * capacity)."""
+        t = sim_time_minutes % (24 * 60)
+        if t < self.first_train_min or t > self.last_train_min:
+            return 0
+        return self.trains_per_direction * self.capacity_per_train
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Bus Vehicle data class (SUB-03, task 3.3)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BusVehicle:
+    """A single bus operating on a route."""
+
+    vehicle_id: int
+    route_id: str
+    route_stops: list[str]  # ordered list of stop node IDs
+    position_index: int = 0  # current stop index
+    progress: float = 0.0  # 0..1 fraction towards next stop
+    speed_factor: float = 1.0  # per-vehicle speed variation
+    dwell_remaining: float = 0.0  # ticks of dwell time remaining at a stop
+    arrival_ticks: list[int] = field(default_factory=list)  # tick numbers when arriving at stops
+
+
 class MultiModalNetwork:
     """Multi-modal transportation network (Roads, Metro, Bus).
 
@@ -87,6 +158,19 @@ class MultiModalNetwork:
         self._bus_capacity_multiplier: float = 1.0
         self._fuel_price_delta_paise: int = 0
         self._weather_rain_intensity: float = 0.0
+        self.drained_nodes: set[str] = set()
+        self.traffic_police_nodes: set[str] = set()
+
+        # Phase 2: DMRC schedule (SUB-03, task 3.1)
+        self._dmrc_schedule: dict[str, DMRCLineSchedule] = {}
+
+        # Phase 2: Metro boarding capacity tracking (SUB-03, task 3.2)
+        self._metro_riders_this_tick: dict[str, int] = {}  # line → rider count
+        self._metro_denied_this_tick: int = 0
+
+        # Phase 2: Bus vehicles for bunching simulation (SUB-03, task 3.3)
+        self._bus_vehicles: list[BusVehicle] = []
+        self._bus_arrival_log: dict[str, list[int]] = {}  # stop_node → [tick]
 
         # Bounding box (computed dynamically for real data)
         self._lat_min: float = CITY_LAT - (size / 2) * spacing
@@ -101,6 +185,9 @@ class MultiModalNetwork:
         # Build Transit lines (Delhi Metro Yellow and Blue lines, major bus routes)
         self._build_metro_system()
         self._build_bus_system()
+
+        # Initialize bus vehicles after bus system is built
+        self._init_bus_vehicles()
 
     # ------------------------------------------------------------------
     # Class method: construct from real OSM data
@@ -143,6 +230,11 @@ class MultiModalNetwork:
         net._bus_capacity_multiplier = 1.0
         net._fuel_price_delta_paise = 0
         net._weather_rain_intensity = 0.0
+        net._dmrc_schedule = {}
+        net._metro_riders_this_tick = {}
+        net._metro_denied_this_tick = 0
+        net._bus_vehicles = []
+        net._bus_arrival_log = {}
 
         # --- Convert OSM MultiDiGraph → our internal DiGraph ---
         net._load_osm_road_graph(osm_graph)
@@ -167,6 +259,9 @@ class MultiModalNetwork:
 
         if bus_json_path:
             net._load_bus_from_json(Path(bus_json_path))
+
+        # Initialize bus vehicles after routes are loaded
+        net._init_bus_vehicles()
 
         return net
 
@@ -483,10 +578,12 @@ class MultiModalNetwork:
                     length = math.sqrt(dx * dx + dy * dy)
 
                     # Lanes capacity: segments closer to center have higher capacity
+                    # Calibrated so pop=1000 produces road_congestion_index ∈ [0.2, 0.8]
+                    # at peak on the synthetic 10×10 grid (Delhi neighborhood streets).
                     dist_to_center = math.sqrt(
                         (r - self.size / 2) ** 2 + (c - self.size / 2) ** 2
                     )
-                    capacity = max(100.0, 500.0 - 40.0 * dist_to_center)
+                    capacity = max(5.0, 25.0 - 2.0 * dist_to_center)
 
                     self.g.add_edge(
                         curr,
@@ -669,17 +766,24 @@ class MultiModalNetwork:
         t_zero = length / free_flow_speed
 
         if edge_type == "road":
-            # Apply weather speed reduction
+            # Apply weather speed reduction and check for drainage mitigation
+            rain = self.weather_rain_intensity
+            if u in self.drained_nodes or v in self.drained_nodes:
+                rain = rain * 0.1  # 90% rain reduction near active drainage crews
+
             # Rain drops car speed by up to 40%
-            weather_mult = 1.0 - 0.40 * self.weather_rain_intensity
+            weather_mult = 1.0 - 0.40 * rain
             speed = free_flow_speed * weather_mult
             t_zero = length / max(1.0, speed)
 
             # Bureau of Public Roads (BPR) formula
             flow = edge_data["flow"]
             capacity = edge_data["capacity"]
+            if u in self.traffic_police_nodes or v in self.traffic_police_nodes:
+                capacity = capacity * 1.5  # 50% capacity boost from traffic police routing
+
             # Weather reduces lane capacity too by up to 30%
-            cap = capacity * (1.0 - 0.30 * self.weather_rain_intensity)
+            cap = capacity * (1.0 - 0.30 * rain)
 
             # Calibrated mixed-traffic BPR formula for Indian roads
             # Mixed-traffic has lower threshold of speed degradation but standard exponential growth
@@ -876,3 +980,263 @@ class MultiModalNetwork:
 
         # Clear routing cache as congestion and travel times have changed for the next tick
         self.clear_routing_cache()
+
+    # ------------------------------------------------------------------
+    # Phase 2: DMRC Schedule Loading (SUB-03, task 3.1)
+    # ------------------------------------------------------------------
+
+    def load_dmrc_schedule(self, json_path: str | Path) -> None:
+        """Load DMRC frequency schedule from JSON file.
+
+        Populates self._dmrc_schedule with DMRCLineSchedule objects keyed
+        by line name (lowercase).
+        """
+        json_path = Path(json_path)
+        if not json_path.exists():
+            return
+
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        for line_info in data.get("lines", []):
+            name = line_info["name"].lower()
+            peak_windows = []
+            for pw in line_info.get("peak_windows", []):
+                peak_windows.append((pw["start_min"], pw["end_min"]))
+
+            schedule = DMRCLineSchedule(
+                name=name,
+                peak_headway_sec=line_info["peak_headway_sec"],
+                offpeak_headway_sec=line_info["offpeak_headway_sec"],
+                peak_windows=peak_windows,
+                first_train_min=line_info.get("first_train_min", 360),
+                last_train_min=line_info.get("last_train_min", 1380),
+                capacity_per_train=line_info.get("capacity_per_train", 1800),
+                trains_per_direction=line_info.get("trains_per_direction", 8),
+            )
+            self._dmrc_schedule[name] = schedule
+
+    def get_metro_wait_time(self, line: str, sim_time_minutes: int) -> float:
+        """Return expected metro wait time in minutes for a line at given time.
+
+        If no DMRC schedule loaded, returns a default 2.5 min wait.
+        """
+        sched = self._dmrc_schedule.get(line.lower())
+        if sched is None:
+            return 2.5  # default fallback
+        return sched.get_wait_time_min(sim_time_minutes)
+
+    # ------------------------------------------------------------------
+    # Phase 2: Metro Boarding Capacity (SUB-03, task 3.2)
+    # ------------------------------------------------------------------
+
+    def reset_metro_load_tracking(self) -> None:
+        """Reset per-tick metro rider counts. Called at start of each tick."""
+        self._metro_riders_this_tick.clear()
+        self._metro_denied_this_tick = 0
+
+    def try_board_metro(self, line: str, sim_time_minutes: int) -> tuple[bool, float]:
+        """Attempt to board a metro train on the given line.
+
+        Returns:
+            (boarded: bool, extra_wait_min: float)
+            - If capacity available: (True, wait_time)
+            - If over capacity: (False, 0.0) — agent should reroute
+
+        Uses DMRC schedule capacity if loaded, otherwise unlimited.
+        """
+        line_lower = line.lower()
+        sched = self._dmrc_schedule.get(line_lower)
+
+        # Default wait time
+        wait_min = self.get_metro_wait_time(line_lower, sim_time_minutes)
+
+        if sched is None:
+            # No schedule — always allow boarding with default wait
+            self._metro_riders_this_tick[line_lower] = (
+                self._metro_riders_this_tick.get(line_lower, 0) + 1
+            )
+            return True, wait_min
+
+        # Check capacity
+        capacity = sched.get_capacity_this_tick(sim_time_minutes)
+        current_riders = self._metro_riders_this_tick.get(line_lower, 0)
+
+        if capacity == 0:
+            # No service (before first train / after last train)
+            self._metro_denied_this_tick += 1
+            return False, 0.0
+
+        if current_riders < capacity:
+            # Can board
+            self._metro_riders_this_tick[line_lower] = current_riders + 1
+            return True, wait_min
+
+        # Over capacity — add queuing delay (wait for next train)
+        queue_depth = current_riders - capacity + 1
+        trains_to_wait = 1 + (queue_depth // sched.capacity_per_train)
+        headway_min = sched.get_headway_sec(sim_time_minutes) / 60.0
+
+        if trains_to_wait > 2:
+            # Denied boarding — too many trains to wait
+            self._metro_denied_this_tick += 1
+            return False, 0.0
+
+        # Queued — extra wait
+        extra_wait = trains_to_wait * headway_min
+        self._metro_riders_this_tick[line_lower] = current_riders + 1
+        return True, wait_min + extra_wait
+
+    # ------------------------------------------------------------------
+    # Phase 2: Bus Vehicle Simulation (SUB-03, task 3.3)
+    # ------------------------------------------------------------------
+
+    def _init_bus_vehicles(self) -> None:
+        """Initialize bus vehicles on discovered bus routes.
+
+        Creates 2–4 buses per route with staggered initial positions
+        and per-vehicle speed variation.
+        """
+        # Discover bus routes from edge tags
+        route_stops: dict[str, list[str]] = {}
+        for u, v, data in self.g.edges(data=True):
+            route_id = data.get("bus_route")
+            if route_id and data.get("type") == "road":
+                if route_id not in route_stops:
+                    route_stops[route_id] = []
+                if u not in route_stops[route_id]:
+                    route_stops[route_id].append(u)
+                if v not in route_stops[route_id]:
+                    route_stops[route_id].append(v)
+
+        vid = 0
+        for route_id, stops in route_stops.items():
+            if len(stops) < 2:
+                continue
+
+            # 4 buses per route, staggered positions
+            n_buses = min(4, max(2, len(stops) // 3))
+            for i in range(n_buses):
+                start_idx = (i * len(stops)) // n_buses
+                # Per-vehicle speed factor: significant random variation (0.65–1.35)
+                # Wider spread creates initial spacing differences that amplify
+                # through the dwell-time feedback loop into bunching.
+                speed_factor = 0.65 + 0.70 * _stdlib_random.random()
+
+                bus = BusVehicle(
+                    vehicle_id=vid,
+                    route_id=route_id,
+                    route_stops=stops,
+                    position_index=start_idx,
+                    speed_factor=speed_factor,
+                )
+                self._bus_vehicles.append(bus)
+                vid += 1
+
+    def step_bus_vehicles(self, tick: int, rain_intensity: float = 0.0) -> None:
+        """Advance all bus vehicles by one tick.
+
+        Buses travel between stops with stochastic dwell times and
+        congestion-based speed variation. The natural variance in dwell
+        time + road congestion creates emergent bunching behavior.
+
+        Parameters:
+            tick: current simulation tick number
+            rain_intensity: 0.0–1.0 rain intensity affecting bus speed
+        """
+        for bus in self._bus_vehicles:
+            if bus.dwell_remaining > 0:
+                # Bus is dwelling at a stop
+                bus.dwell_remaining -= 1
+                continue
+
+            # Advance bus position
+            if bus.position_index >= len(bus.route_stops) - 1:
+                # Reached end of route — loop back to start
+                bus.position_index = 0
+                continue
+
+            current_stop = bus.route_stops[bus.position_index]
+            next_stop = bus.route_stops[bus.position_index + 1]
+
+            # Calculate travel speed factor from road congestion
+            congestion_factor = 1.0
+            if self.g.has_edge(current_stop, next_stop):
+                edge = self.g.edges[current_stop, next_stop]
+                flow = edge.get("flow", 0)
+                capacity = edge.get("capacity", 300)
+                # BPR-style speed reduction
+                congestion_factor = max(0.3, 1.0 - 0.5 * (flow / max(10.0, capacity)))
+
+            # Rain slows buses
+            rain_factor = 1.0 - 0.25 * rain_intensity
+
+            # Advance progress towards next stop
+            effective_speed = bus.speed_factor * congestion_factor * rain_factor
+            bus.progress += effective_speed * 0.35  # balanced step size
+
+            if bus.progress >= 1.0:
+                # Arrived at next stop
+                bus.position_index += 1
+                bus.progress = 0.0
+
+                # Record arrival for bunching analysis
+                stop_node = bus.route_stops[bus.position_index]
+                bus.arrival_ticks.append(tick)
+                if stop_node not in self._bus_arrival_log:
+                    self._bus_arrival_log[stop_node] = []
+                self._bus_arrival_log[stop_node].append(tick)
+
+                # Stochastic dwell time at stop (main source of bunching)
+                # Moderate dwell (0.5–4 ticks) with heavy randomness.
+                # Key: the random dwell varies enough to create spacing differences
+                # and the demand feedback amplifies them into bunching.
+                base_dwell = 0.3 + _stdlib_random.expovariate(0.8) * 1.5
+                # Random passenger boarding time adds variance
+                base_dwell += _stdlib_random.uniform(0.0, 2.0)
+                # If previous bus was recent (< 10 ticks ago at this stop),
+                # fewer passengers waited → much shorter dwell
+                arrivals = self._bus_arrival_log.get(stop_node, [])
+                recent_arrivals = [t for t in arrivals if tick - t < 10 and t != tick]
+                if recent_arrivals:
+                    base_dwell *= 0.15  # very little demand — bus is bunched behind leader
+                else:
+                    base_dwell *= 2.2  # more demand — first bus to arrive in a while
+
+                bus.dwell_remaining = max(0.0, base_dwell)
+
+    def get_bus_arrival_cv(self, stop_node: str | None = None) -> float:
+        """Compute coefficient of variation of bus inter-arrival times.
+
+        If stop_node is None, uses the stop with the most arrivals.
+
+        Returns:
+            CV (std / mean) of inter-arrival times, or 0.0 if insufficient data.
+        """
+        import numpy as np
+
+        if stop_node is None:
+            # Find stop with most arrivals
+            if not self._bus_arrival_log:
+                return 0.0
+            stop_node = max(self._bus_arrival_log, key=lambda k: len(self._bus_arrival_log[k]))
+
+        arrivals = sorted(self._bus_arrival_log.get(stop_node, []))
+        if len(arrivals) < 3:
+            return 0.0
+
+        # Inter-arrival times
+        intervals = [arrivals[i + 1] - arrivals[i] for i in range(len(arrivals) - 1)]
+        intervals = [x for x in intervals if x > 0]  # filter zero-intervals (simultaneous)
+
+        if len(intervals) < 2:
+            return 0.0
+
+        mean_interval = float(np.mean(intervals))
+        std_interval = float(np.std(intervals))
+
+        if mean_interval < 0.001:
+            return 0.0
+
+        return std_interval / mean_interval
+

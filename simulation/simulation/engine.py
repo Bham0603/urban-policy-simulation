@@ -28,6 +28,9 @@ from simulation.economic_agents import (
     MesaDeliveryAgent,
     WholesaleSupplier,
     ShopChoiceModel,
+    MesaEnforcementOfficer,
+    MesaDrainageWorker,
+    MesaTrafficPolice,
 )
 import pandas as pd
 from simulation.metrics import calculate_metrics
@@ -151,6 +154,9 @@ class UrbanModel(mesa.Model):
         self.stalls: dict[int, MesaStallOwner] = {}
         self.stores: dict[int, MesaStoreManager] = {}
         self.delivery_agents: dict[int, MesaDeliveryAgent] = {}
+        self.officers: dict[int, MesaEnforcementOfficer] = {}
+        self.drainage_workers: dict[int, MesaDrainageWorker] = {}
+        self.traffic_police: dict[int, MesaTrafficPolice] = {}
         self.economic_agents: dict[int, mesa.Agent] = {}
         self.supplier: WholesaleSupplier | None = None
 
@@ -383,6 +389,53 @@ class UrbanModel(mesa.Model):
             self.schedule.add(delivery)
             self.delivery_agents[agent_id_counter] = delivery
             self.economic_agents[agent_id_counter] = delivery
+            agent_id_counter += 1
+
+        # 5. Spawning Enforcement Officers, Drainage Workers, and Traffic Police
+        num_officers = max(1, int(pop_size * 0.002))
+        num_workers = max(1, int(pop_size * 0.002))
+        num_police = max(1, int(pop_size * 0.002))
+
+        # Patrol lists for Enforcement Officers (using candidate metro stations or intersections)
+        patrol_nodes = candidates if len(candidates) >= 2 else (intersections if intersections else [central_node])
+
+        for _ in range(num_officers):
+            # Select 3-4 nodes for this officer's patrol route
+            patrol_route = list(rng.choice(patrol_nodes, size=min(4, len(patrol_nodes)), replace=False))
+            if not patrol_route:
+                patrol_route = [central_node]
+            officer = MesaEnforcementOfficer(
+                model=self,
+                officer_id=agent_id_counter,
+                patrol_nodes=patrol_route
+            )
+            self.schedule.add(officer)
+            self.officers[agent_id_counter] = officer
+            self.economic_agents[agent_id_counter] = officer
+            agent_id_counter += 1
+
+        for _ in range(num_workers):
+            base_node = str(rng.choice(candidates))
+            worker = MesaDrainageWorker(
+                model=self,
+                worker_id=agent_id_counter,
+                base_node=base_node
+            )
+            self.schedule.add(worker)
+            self.drainage_workers[agent_id_counter] = worker
+            self.economic_agents[agent_id_counter] = worker
+            agent_id_counter += 1
+
+        for _ in range(num_police):
+            police_node = str(rng.choice(intersections)) if intersections else str(rng.choice(candidates))
+            police = MesaTrafficPolice(
+                model=self,
+                police_id=agent_id_counter,
+                intersection_node=police_node
+            )
+            self.schedule.add(police)
+            self.traffic_police[agent_id_counter] = police
+            self.economic_agents[agent_id_counter] = police
             agent_id_counter += 1
 
     def _generate_synthetic_population(self, population_size: int) -> None:
@@ -714,6 +767,10 @@ class UrbanModel(mesa.Model):
 
     def step(self) -> None:
         """Advance the Mesa model exactly one step."""
+        # Clear drainage and traffic police nodes for the current tick
+        self.network.drained_nodes.clear()
+        self.network.traffic_police_nodes.clear()
+
         # 0. Daily hooks — reset household resources and adapt agent behavior
         current_day = self.sim_time_minutes // (24 * 60)
         if current_day > self._last_day:
@@ -727,6 +784,9 @@ class UrbanModel(mesa.Model):
                 if hasattr(agent, "adapt_behavior"):
                     agent.adapt_behavior()
 
+        # Phase 2: Reset per-tick metro boarding counters (SUB-03, task 3.2)
+        self.network.reset_metro_load_tracking()
+
         # 1. Step the scheduler (activates all agents)
         self.schedule.step()
 
@@ -737,6 +797,12 @@ class UrbanModel(mesa.Model):
             if getattr(a, "state", None) == "COMMUTING" and hasattr(a, "current_route")
         ]
         self.network.update_road_congestion(active_commuters)
+
+        # Phase 2: Advance bus vehicles for bunching simulation (SUB-03, task 3.3)
+        self.network.step_bus_vehicles(
+            tick=self.current_tick,
+            rain_intensity=self.network.weather_rain_intensity,
+        )
 
         # 3. Calculate aggregate metrics
         met_dict = calculate_metrics(self)
@@ -771,6 +837,29 @@ class MesaSimEngine:
         self.config = config
         self.model = UrbanModel(config, data_paths=data_paths)
         self._pending_events: list[Event] = []
+
+        # Phase 2: Auto-load DMRC schedule if available (SUB-03, task 3.1)
+        self._load_dmrc_schedule()
+
+    def _load_dmrc_schedule(self) -> None:
+        """Auto-discover and load the DMRC schedule JSON file.
+
+        Searches for dmrc_schedule.json in:
+        1. simulation/data/ relative to this module
+        2. data/ directory relative to this module
+        """
+        from pathlib import Path
+
+        # Try simulation/data/dmrc_schedule.json relative to this file
+        module_dir = Path(__file__).resolve().parent
+        candidates = [
+            module_dir.parent / "data" / "dmrc_schedule.json",
+            module_dir / "data" / "dmrc_schedule.json",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                self.model.network.load_dmrc_schedule(candidate)
+                return
 
     @property
     def current_tick(self) -> int:
