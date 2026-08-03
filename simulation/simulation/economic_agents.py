@@ -7,8 +7,8 @@ with proper step() methods and dynamic restocking via the routing engine.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from collections import deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import mesa
