@@ -33,8 +33,8 @@ jobs:
       - name: Lint check (ruff)
         run: ruff check .
 
-      - name: Format check (black)
-        run: black --check .
+      - name: Format check (ruff)
+        run: ruff format --check .
 
       - name: Test (pytest)
         run: python -m pytest -q
