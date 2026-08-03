@@ -2,6 +2,7 @@ import { MapEngine } from '../map/map';
 import { ChartsManager } from '../charts/charts';
 import { PolicyController } from '../policy/policy';
 import type { PolicyState } from '../policy/policy';
+import { gsap } from 'gsap';
 
 export class DashboardApp {
   private mapEngine: MapEngine;
@@ -54,6 +55,23 @@ export class DashboardApp {
     
     // Set up standard initial event
     this.addEventLog('Monsoon Scenario selected. Weather clear. Baseline active.', 'info');
+
+    // GSAP entrance animations
+    this.initAnimations();
+  }
+
+  private initAnimations() {
+    gsap.from(".app-header", { y: -50, opacity: 0, duration: 1.0, ease: "power4.out" });
+    gsap.from(".sidebar-panel", { x: -80, opacity: 0, duration: 1.0, delay: 0.2, ease: "power4.out" });
+    gsap.from(".workspace-container", { scale: 0.97, opacity: 0, duration: 1.2, delay: 0.3, ease: "power3.out" });
+    gsap.from(".chart-card", {
+      y: 30,
+      opacity: 0,
+      duration: 0.8,
+      stagger: 0.1,
+      delay: 0.5,
+      ease: "power2.out"
+    });
   }
 
   // --- REST & WEBSOCKET SYNC LAYER ---
@@ -310,6 +328,12 @@ export class DashboardApp {
     const cells = frame.diff?.changed_cells;
     if (Array.isArray(cells) && cells.length > 0) {
       this.mapEngine.ingestCells(cells);
+    }
+
+    // Ingest special agents from backend metrics
+    const specialAgents = frame.diff?.metrics?.special_agents;
+    if (Array.isArray(specialAgents)) {
+      this.mapEngine.ingestSpecialAgents(specialAgents);
     }
 
     // After a brief baseline, auto-inject the scenario's defining event.

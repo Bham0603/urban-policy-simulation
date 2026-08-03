@@ -1,5 +1,5 @@
-# Backend (SUB-05) container. Single-stage, slim — the v1 demo runs on a laptop or a small
-# Railway/Render instance (PROJECT_SPEC §4.3, §5.3). No Postgres client, no build toolchain needed.
+# Backend (SUB-05) container. Single-stage, slim.
+# Built with the project root as context to bundle the simulation dependency.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -8,17 +8,20 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install deps first for better layer caching.
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install .
+# Copy simulation and backend codebases
+COPY simulation ./simulation
+COPY backend ./backend
 
-# App code.
-COPY app ./app
+# Install pip packages
+RUN pip install --upgrade pip && \
+    pip install ./simulation && \
+    pip install ./backend
 
-# SQLite metadata + any local artifacts live here; mount a volume in prod to persist.
-RUN mkdir -p /app/data
+# Set workspace directory for the backend app runtime
+WORKDIR /app/backend
+RUN mkdir -p /app/backend/data
 
 EXPOSE 8000
 
-# Honor the platform's $PORT if provided (Railway/Render inject it), else 8000.
+# Honor the platform's $PORT if provided, else default to 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
