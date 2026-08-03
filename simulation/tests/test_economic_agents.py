@@ -1,12 +1,12 @@
 import pytest
-from simulation.engine import UrbanModel
+from app.models.schemas import ScenarioConfig
 from simulation.economic_agents import (
+    MesaDeliveryAgent,
     MesaStallOwner,
     MesaStoreManager,
     MesaStoreStaff,
-    MesaDeliveryAgent,
 )
-from app.models.schemas import ScenarioConfig
+from simulation.engine import UrbanModel
 
 
 @pytest.fixture
