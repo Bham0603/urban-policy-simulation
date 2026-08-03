@@ -535,6 +535,9 @@ class CitizenAgent(mesa.Agent):
         # Track if we've claimed a car from the household this trip
         self._holding_car = False
 
+        # Phase 2: Track denied metro boarding count (SUB-03, task 3.2)
+        self._denied_boarding_count = 0
+
         # Shopping extension — pending shopping needs for the ShopChoiceModel
         self.shopping_needs: list[dict] = []
         self._shopped_today = False
@@ -630,6 +633,25 @@ class CitizenAgent(mesa.Agent):
                 self.current_mode = "bus"
             else:
                 self._holding_car = True
+
+        # Phase 2: Metro boarding capacity check (SUB-03, task 3.2)
+        if chosen_mode == "metro":
+            # Find which metro line the agent is near
+            metro_line = self._detect_metro_line(source)
+            if metro_line:
+                boarded, wait_min = self.model.network.try_board_metro(
+                    metro_line, self.model.sim_time_minutes
+                )
+                if not boarded:
+                    self._denied_boarding_count += 1
+                    if self._denied_boarding_count >= 3:
+                        # Denied 3x — reroute via bus
+                        chosen_mode = "bus"
+                        self.current_mode = "bus"
+                    else:
+                        # Try again next tick
+                        self.state = AgentState.AT_HOME
+                        return
 
         # Find physical shortest path in multi-modal network
         net: MultiModalNetwork = self.model.network
@@ -904,11 +926,41 @@ class CitizenAgent(mesa.Agent):
         self.route_index = 0
         self._current_leg_index = 0
         self._shopped_today = False
+        self._denied_boarding_count = 0  # Phase 2: reset denied boardings
 
         # Release car back to household if we were holding one
         if self._holding_car and self.household is not None:
             self.household.release_car()
             self._holding_car = False
+
+    def _detect_metro_line(self, node_id: str) -> str | None:
+        """Detect which metro line is accessible from the given node.
+
+        Checks neighboring nodes for metro stations and returns the line name.
+        Returns None if no metro station is nearby.
+        """
+        net = self.model.network
+        # Check if the node itself has a metro station attribute
+        node_data = net.g.nodes.get(node_id, {})
+        if node_data.get("type") == "metro_station":
+            return node_data.get("line", "yellow")
+
+        # Check adjacent nodes for metro stations
+        for neighbor in net.g.neighbors(node_id):
+            nbr_data = net.g.nodes.get(neighbor, {})
+            if nbr_data.get("type") == "metro_station":
+                return nbr_data.get("line", "yellow")
+
+        # Check if node has metro_station flag (synthetic grid)
+        if node_data.get("metro_station"):
+            # Try to find line from nearby metro station nodes
+            for neighbor in net.g.neighbors(node_id):
+                nbr_data = net.g.nodes.get(neighbor, {})
+                if nbr_data.get("type") == "metro_station":
+                    return nbr_data.get("line", "yellow")
+            return "yellow"  # default fallback
+
+        return None
 
     # -----------------------------------------------------------------------
     # Shopping — discretionary evening shop choice (ShopChoiceModel wiring)

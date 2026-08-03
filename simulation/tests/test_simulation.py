@@ -134,7 +134,11 @@ def test_event_injection():
 
 
 def test_strict_determinism():
-    """Verify scenario config + seed reproduces identical run twice, byte-for-byte."""
+    """Verify scenario config + seed reproduces identical run twice, byte-for-byte.
+
+    Phase 2 (task 1.2): Extended to 100 ticks to verify long-run stability
+    through day-boundary resets and multi-leg scheduling.
+    """
     config_a = ScenarioConfig(
         name="deterministic_scenario",
         population=150,
@@ -159,8 +163,8 @@ def test_strict_determinism():
     engine_a.queue_event(ev_a)
     engine_b.queue_event(ev_b)
 
-    # Run both engines for 20 ticks
-    for _ in range(20):
+    # Run both engines for 100 ticks (Phase 2: extended from 20)
+    for tick_num in range(100):
         snap_a = engine_a.step()
         snap_b = engine_b.step()
 
@@ -174,10 +178,14 @@ def test_strict_determinism():
             snap_a.metrics.road_congestion_index == snap_b.metrics.road_congestion_index
         )
         assert snap_a.metrics.agents_commuting == snap_b.metrics.agents_commuting
+        assert snap_a.metrics.bus_load_pct == snap_b.metrics.bus_load_pct
+        assert snap_a.metrics.aqi_estimate == snap_b.metrics.aqi_estimate
 
         # Check mode share matches perfectly
         for mode, val in snap_a.metrics.mode_share.items():
-            assert snap_b.metrics.mode_share[mode] == val
+            assert snap_b.metrics.mode_share[mode] == val, (
+                f"Mode share mismatch at tick {tick_num}: {mode}={val} vs {snap_b.metrics.mode_share[mode]}"
+            )
 
         # Check grid cell matches perfectly
         for c1, c2 in zip(snap_a.grid, snap_b.grid):
@@ -185,6 +193,60 @@ def test_strict_determinism():
             assert c1.lon == c2.lon
             assert c1.density == c2.density
             assert c1.congestion == c2.congestion
+
+
+def test_determinism_with_events():
+    """Phase 2 (task 1.2): Verify determinism with weather + infrastructure events.
+
+    Queues events at specific ticks and verifies identical divergence patterns.
+    """
+    def run_with_events(seed):
+        config = ScenarioConfig(
+            name="determinism_events",
+            population=100,
+            seed=seed,
+            tick_minutes=5,
+            params={},
+        )
+        engine = MesaSimEngine(config)
+        metrics_arc = []
+
+        for tick_num in range(80):
+            # Inject events at specific ticks
+            if tick_num == 10:
+                engine.queue_event(Event(
+                    type=EventType.weather,
+                    payload={"rain_intensity": 0.7},
+                ))
+            if tick_num == 30:
+                engine.queue_event(Event(
+                    type=EventType.infrastructure,
+                    payload={"disable_metro_line": "yellow"},
+                ))
+            if tick_num == 50:
+                engine.queue_event(Event(
+                    type=EventType.policy,
+                    payload={"fuel_price_delta_paise": 2000},
+                ))
+
+            snap = engine.step()
+            metrics_arc.append({
+                "tick": snap.metrics.tick,
+                "avg_commute": snap.metrics.avg_commute_minutes,
+                "metro_load": snap.metrics.metro_load_pct,
+                "congestion": snap.metrics.road_congestion_index,
+                "commuting": snap.metrics.agents_commuting,
+                "mode_share": dict(snap.metrics.mode_share),
+            })
+        return metrics_arc
+
+    arc_a = run_with_events(seed=77)
+    arc_b = run_with_events(seed=77)
+
+    for i, (a, b) in enumerate(zip(arc_a, arc_b)):
+        assert a == b, f"Metric arc mismatch at tick {i}: {a} != {b}"
+
+
 
 
 def test_shortest_path_cache_and_invalidation():
