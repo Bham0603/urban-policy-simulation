@@ -26,5 +26,9 @@ include = ["simulation*"]
 
 [tool.ruff]
 line-length = 100
-ignore = ["I001"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+
 
