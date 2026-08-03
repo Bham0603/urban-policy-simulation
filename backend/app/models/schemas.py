@@ -139,7 +139,10 @@ class AggregateMetrics(BaseModel):
     )
     special_agents: list[dict] = Field(
         default_factory=list,
-        description="Locations and states of special agents (officers, drainage, police, stalls, stores)."
+        description=(
+            "Locations and states of special agents "
+            "(officers, drainage, police, stalls, stores)."
+        ),
     )
 
 
