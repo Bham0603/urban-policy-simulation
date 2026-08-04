@@ -21,8 +21,8 @@ export class DashboardApp {
   
   // Real Backend connection details
   private ws: WebSocket | null = null;
-  private restBaseUrl = 'http://localhost:8000/api/v1';
-  private wsBaseUrl = 'ws://localhost:8000/ws';
+  private restBaseUrl: string;
+  private wsBaseUrl: string;
 
   // Resolved at connect time — backend stores scenarios by id (e.g. scenario_0001),
   // while currentScenario holds the human name (e.g. scenario_a_monsoon).
@@ -33,6 +33,14 @@ export class DashboardApp {
   private archetypeInjected = false;
 
   constructor() {
+    const rawApiUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const cleanUrl = rawApiUrl.replace(/\/$/, '');
+    this.restBaseUrl = `${cleanUrl}/api/v1`;
+    
+    const wsScheme = cleanUrl.startsWith('https://') ? 'wss://' : 'ws://';
+    const hostPath = cleanUrl.replace(/^https?:\/\//, '');
+    this.wsBaseUrl = `${wsScheme}${hostPath}/ws`;
+
     this.mapEngine = new MapEngine('map-canvas');
     this.chartsManager = new ChartsManager();
     
