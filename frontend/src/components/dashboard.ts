@@ -33,7 +33,7 @@ export class DashboardApp {
   private archetypeInjected = false;
 
   constructor() {
-    const rawApiUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const rawApiUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.NEXT_PUBLIC_API_URL || 'https://urban-policy-simulation.onrender.com';
     const cleanUrl = rawApiUrl.replace(/\/$/, '');
     this.restBaseUrl = `${cleanUrl}/api/v1`;
     
