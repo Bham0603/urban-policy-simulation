@@ -1,4 +1,4 @@
-# REQUIREMENTS — Phase 1 Real-City Simulation
+# REQUIREMENTS — Phase 2 & Future Scopes Simulation
 
 > **Owner of this doc:** Person 1 (Simulation Core + Infra)  
 > **Folders I own:** `simulation/`, `infra/`  
@@ -9,232 +9,138 @@
 
 ## Current State of My Folders
 
-### `simulation/` — What I've Already Built
+### `simulation/` — What I've Already Built (Phase 1 Complete)
 
 | File | Lines | What It Does |
 |---|---|---|
-| `simulation/simulation/engine.py` | 310 | Mesa-backed `UrbanModel` + `MesaSimEngine` adapter. Tick loop, event dispatch, snapshot generation, 10×10 grid aggregation. |
-| `simulation/simulation/network.py` | 484 | `MultiModalNetwork` — Delhi (Rajiv Chowk) 10×10 grid with roads, Yellow/Blue metro lines (DMRC), CP outer ring bus loop. Dijkstra routing, BPR congestion, routing cache. |
-| `simulation/simulation/agents.py` | 353 | `CitizenAgent` — MNL mode choice, memory, schedule adaptation, advance-commute stepping. |
-| `simulation/simulation/metrics.py` | 109 | `calculate_metrics()` — mode share, avg commute time, congestion index, metro load. |
-| `simulation/simulation/__init__.py` | 8 | Public exports. |
-| `simulation/tests/test_simulation.py` | 229 | 7 tests: init, stepping, events, determinism, routing cache, multi-modal routing, BPR calibration. |
-| `simulation/pyproject.toml` | 24 | Deps: `mesa>=2.2`, `numpy`, `networkx`, `pandas`. |
+| `simulation/simulation/engine.py` | ~890 | Mesa-backed `UrbanModel` + `MesaSimEngine`. Tick loop, event dispatch, snapshot generation. **Now loads real OSM `synthetic_population.parquet` and spawns economic agents.** |
+| `simulation/simulation/network.py` | ~850 | `MultiModalNetwork` — Delhi 10×10 grid with roads, DMRC metro lines, bus loop. Dijkstra routing, BPR congestion, dynamic routing cache. |
+| `simulation/simulation/agents.py` | ~1000 | `CitizenAgent` — MNL mode choice, multi-leg schedules, memory. **Now includes evening discretionary shopping and `ShopChoiceModel` integration.** |
+| `simulation/simulation/economic_agents.py`| ~300 | **[NEW]** Mesa wrappers for `StallOwner`, `StoreManager`, `StoreStaff`, and `DeliveryAgent`. Dynamic restocking and rain surge pricing. |
+| `simulation/simulation/metrics.py` | ~170 | `calculate_metrics()` — mode share, avg commute, congestion, metro load, **bus load, and AQI estimates**. |
+| `simulation/tests/` | 39 Tests | Comprehensive suite covering calibration, determinism, economic agents, and real OSM data loading. **All passing.** |
 
-> **Status:** Grid is now centered on Delhi Rajiv Chowk (28.6328, 77.2197) with Yellow/Blue DMRC metro lines. Still synthetic grid — will be swapped for real OSM data when data pipeline outputs are available.
-
-### `infra/` — What Exists
-
-| File | What |
-|---|---|
-| `infra/CLAUDE.md` | Agent guidance — Docker, CI/CD, K8s, Terraform scope |
-| `infra/rule.md` | Git branch rules |
-| `infra/agents/rules/rule.md` | AI agent rules for infra |
-
-> **Status:** Empty scaffold. CI/CD and deployment are Phase 2 concerns per PROJECT_SPEC §13.
+> **Status:** Base Delhi simulation, real OSM data loading, and AI economic agents are fully integrated. `synthetic_population.parquet` has been successfully generated and loaded.
 
 ---
 
-## What I Need From Each Role (Precise Deliverables)
+## Detailed Requirements From Other Subsystems (Phase 2 & Integration)
+
+Based on the current progress in the `ai/`, `data/`, `backend/`, and `frontend/` folders, the following are the strict integration requirements necessary for Phase 2 development.
+
+### 1. FROM SUB-04 — Data Engineering (Person 4)
+> **Priority: 🔴 CRITICAL — Needed for realistic agent demographics and Phase 2 scenarios.**
+
+**What they have done:**
+- `1_download_osm_network.py` generates OSM networks.
+- `3_fetch_monsoon_weather.py` generates `weather_delhi.csv`.
+- Defined a placeholder for `2_fetch_census_demographics.py`.
+
+**What I need from them in detail:**
+1. **Complete Census Demographics Pipeline (`2_fetch_census_demographics.py`)**
+   - **Requirement:** I need the synthetic population generator to sample real demographics instead of uniform random distribution.
+   - **Details:** The pipeline must output income proxies (PLFS wage brackets) and accurate worker categories for the NCT of Delhi.
+2. **Freight & Logistics Data (`data/processed_data/freight_nodes.json`)**
+   - **Requirement:** A defined list of hubs for wholesale distribution and last-mile goods movement.
+   - **Details:** Must map to existing nodes in `network.graphml`. Will be used to spawn heavy freight agents.
+3. **Ride-Hail Historical Data (`data/processed_data/ride_hail_historical.csv`)**
+   - **Requirement:** A CSV containing `time_of_day`, `avg_wait_time_mins`, and `surge_multiplier`.
+   - **Details:** I need this baseline availability to calibrate the simulation's dynamic ride-hail pricing model.
 
 ---
 
-### FROM SUB-04 — Data Engineering (Person 4)
+### 2. FROM SUB-02 — Agent Behavior / AI (Person 2)
+> **Priority: 🟡 MEDIUM — Needed for expanding agent logic beyond commuting & retail.**
 
-> **Priority: 🔴 CRITICAL — I am blocked until these files exist.**
+**What they have done:**
+- Built comprehensive models for retail agents (`StallOwner`, `StoreManager`), shop choice MNL, and transaction interactions.
+- Deferred per-agent heterogeneous utility weights, household joint decisions, and schedule adaptation.
 
-#### File 1: `data/processed_data/weather_delhi.csv`
-- **Format:** CSV
-- **Content:** Daily rainfall + temperature for Delhi, at least one monsoon season (Jun–Sep)
-- **Schema:** `date, rainfall_mm, temp_max_c, temp_min_c, humidity_pct`
-- **Why I need it:** To drive Scenario A (Monsoon Stress Test). My engine currently has `weather_rain_intensity` as a float 0–1; I need a mapping from actual rainfall mm to this intensity.
-- **Source:** IMD open data or OpenWeather historical API.
-
-#### File 2: `data/processed_data/synthetic_population.parquet`
-- **Format:** Parquet
-- **Content:** 5,000 agent records assigned to real OSM node IDs
-- **Schema I need:**
-```
-agent_id          int64       unique
-home_node         str         real OSM node ID from network.graphml
-work_node         str|null    real OSM node ID (null for non-workers/retired)
-age               int
-income_bracket    int (1-5)
-household_id      int
-occupation        str         office_executive|student|blue_collar_worker|gig_worker|retired_citizen
-has_car           bool
-has_bike          bool
-has_metro_pass    bool
-```
-- **Why I need it:** My `UrbanModel._generate_synthetic_population()` currently generates agents randomly. I need a `_load_real_population()` path that reads this fixed file.
-- **Status:** Need Person 4 to run `3_generate_population.py` to generate this file using the OSM network.
-
-#### File 3: `data/validation/mode_share_delhi.csv`
-- **Format:** CSV
-- **Schema:** `mode, share_pct, source, year`
-- **Why I need it:** To calibrate agent utility weights so simulated mode share matches reality.
-
-#### File 4: `data/validation/dmrc_ridership.csv`
-- **Format:** CSV
-- **Schema:** `station, daily_ridership, peak_hour_ridership, source, year`
-- **Why I need it:** Validation anchor — is my metro load metric in the right ballpark?
+**What I need from them in detail:**
+1. **Ride-hail Surge Pricing Algorithm**
+   - **Requirement:** A new utility evaluation block inside `sim/agents/mode_choice.py` for Ola/Uber equivalents.
+   - **Details:** Needs to include logic that dynamically increases the cost parameter (`surge_multiplier`) based on local demand (number of agents choosing the mode in a tick).
+2. **Freight/Logistics Agent Dataclasses**
+   - **Requirement:** Core behavioral models for heavy freight drivers.
+   - **Details:** Must provide the state logic (e.g., loading, transiting, unloading) so I can port them into Mesa wrappers in `simulation/simulation/economic_agents.py`.
+3. **Schedule Adaptation (Deferred Task)**
+   - **Requirement:** Implement the "three bad commutes → leave earlier" loop.
+   - **Details:** I need the `Agent.adapt_behavior()` method to actually shift departure times based on the `CommuteOutcome` memory.
 
 ---
 
-### FROM SUB-07 — Research (Person 7)
+### 3. FROM SUB-05 — Backend & API (Person 5)
+> **Priority: 🔴 CRITICAL — Needed to connect my engine to the frontend.**
 
-> **Priority: 🟡 MEDIUM — needed for calibration.**
+**What they have done:**
+- Built the FastAPI + WebSockets + SQLite app (`backend/`).
+- Currently running a stub simulation (`app/sim/fake_engine.py`).
 
-| # | Deliverable | Why |
-|---|---|---|
-| 1 | **`research/experiments/anchors.yaml`** — Formal anchor metric definitions | I need to know what values my simulation should hit. |
-| 2 | **Calibration feedback** — "Your mode share is X%, real is Y%, adjust β_cost" | I tune utility weights based on their analysis. |
-
----
-
-### FROM SUB-06 — Frontend (Person 6)
-
-> **Priority: 🟢 LOW — they consume my snapshots, I don't depend on them.**
-
-#### What they need from me (for their reference):
-- `Snapshot` object with `grid: list[GridCell]` (lat, lon, density, congestion)
-- `AggregateMetrics` with mode_share, avg_commute, metro_load, congestion_index
-- WebSocket stream from backend
-
-#### What I need from them:
-Nothing for Phase 1. They consume my output.
+**What I need from them (and what they need from me) in detail:**
+1. **Implement the `SimEngine` Protocol**
+   - **Requirement:** I (Person 1) need to update `backend/app/sim/adapter.py` to wrap my `MesaSimEngine`.
+   - **Details:** Once I implement the protocol, Person 5 must ensure that the backend's `BACKEND_SIM_ENGINE=mesa` toggle correctly instantiates and steps my engine inside their `scenario_manager.py` tick loop.
+2. **Event Injection Routing**
+   - **Requirement:** Ensure that POST requests to `/events` correctly map to my `MesaSimEngine.queue_event(ev)` method for weather, policy, and infrastructure events.
 
 ---
 
-## What I Must Deliver (My Own Checklist)
+### 4. FROM SUB-06 — Frontend (Person 6)
+> **Priority: 🟢 LOW — Needed for visual rendering of Phase 2 features.**
 
-### `simulation/` Changes for Phase 1
+**What they have done:**
+- Built a 60 FPS HTML5 Canvas engine with floating map overlays, policies, and charts.
+- Parses `Snapshot` objects with grid cells.
 
-| # | File | Change | Depends On |
-|---|---|---|---|
-| 1 | `simulation/simulation/engine.py` | Add `_load_real_population(parquet_path)` alongside existing `_generate_synthetic_population()` | SUB-04 file 2 |
-| 2 | `simulation/scenarios/baseline_delhi.yaml` | **NEW** — Default scenario config for Delhi | All data files |
-
-### `infra/` — Phase 1 Scope
-
-| # | File | What |
-|---|---|---|
-| 1 | `docker-compose.yml` (root) | Already exists. Verify backend + frontend services work together. |
-| 2 | `infra/scripts/setup_env.sh` | **NEW** — One-command dev environment setup (create venvs, install deps, run data pipeline) |
-| 3 | `.github/workflows/ci.yml` | **NEW** (when ready) — Run `pytest simulation/tests/` on PR |
+**What I need from them in detail:**
+1. **Visualizing AQI & Heat-Stress (Heatmaps)**
+   - **Requirement:** The UI must consume the `aqi_estimate` and `rain_intensity` metrics from my `AggregateMetrics` payload.
+   - **Details:** Render dynamic heatmap overlays on the grid to visually represent smog zones and heat stress.
+2. **Distinct Particle Rendering for Economic Agents**
+   - **Requirement:** Visually differentiate Delivery Agents and Freight from regular Citizen Commuters.
+   - **Details:** My engine will send distinct agent states (e.g., `is_delivery: true`). The canvas engine must render these as different colors or sizes (e.g., orange particles for delivery bikes).
 
 ---
 
-## Python Dependencies — All Roles
+### 5. FROM SUB-07 — Research (Person 7)
+> **Priority: 🟡 MEDIUM — Needed for validation and calibration.**
 
-### `simulation/requirements.txt` (my folder)
-```txt
-# Core simulation
-mesa>=2.2.0
-numpy>=1.24.0
-networkx>=3.2
-pandas>=2.0.0
+**What they have done:**
+- Empty placeholder directory (`research/`).
 
-# Real data loading (Phase 1)
-osmnx>=1.9.0
-geopandas>=0.14
-pyarrow>=15.0
-
-# Dev
-pytest>=8.0
-black>=24.0
-ruff>=0.5
-mypy>=1.10
-```
-
-### `data/requirements.txt` (Person 4 — for reference)
-```txt
-osmnx>=1.9.0
-geopandas>=0.14
-pandas>=2.1
-shapely>=2.0
-networkx>=3.2
-pyarrow>=15.0
-requests>=2.31
-```
-
-### `ai/requirements.txt` (Person 2 — for reference)
-```txt
-numpy>=1.26
-pandas>=2.1
-scipy>=1.11
-pyarrow>=15.0
-# Dev
-pytest>=8.0
-black>=24.0
-ruff>=0.5
-mypy>=1.10
-```
-
-### `backend/requirements.txt` (Person 5 — for reference)
-```txt
-fastapi>=0.115
-uvicorn[standard]>=0.30
-pydantic>=2.7
-pydantic-settings>=2.3
-websockets>=12.0
-# Dev
-pytest>=8.0
-pytest-asyncio>=0.23
-httpx>=0.27
-ruff>=0.5
-```
-
-### `frontend/package.json` additions (Person 6 — for reference)
-```json
-{
-  "dependencies": {
-    "maplibre-gl": "^4.0.0",
-    "chart.js": "^4.4.0"
-  }
-}
-```
-
-### `research/requirements.txt` (Person 7 — for reference)
-```txt
-jupyter>=1.0
-matplotlib>=3.8
-pandas>=2.1
-pyarrow>=15.0
-geopandas>=0.14
-```
+**What I need from them in detail:**
+1. **Calibration Anchors (`research/experiments/anchors.yaml`)**
+   - **Requirement:** Target metrics for mode share, average commute time, and metro station ridership.
+   - **Details:** I cannot finalize the utility weights in the `ModeChoiceModel` without knowing the exact DMRC ridership targets and Delhi mode share percentages we are aiming for.
+2. **Heat-Stress Impact Metrics**
+   - **Requirement:** Research values on how temperature affects behavior in Delhi.
+   - **Details:** Need a function or multiplier detailing how high heat/humidity reduces agent walking speed or increases utility cost for non-AC modes.
 
 ---
 
-## Environment Setup
-
-```bash
-# Python 3.12 is required (osmnx has no wheels for 3.14)
-# After installing Python 3.12:
-
-# Simulation (my folder)
-cd simulation
-py -3.12 -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-pip install -e .
-pytest tests/
-
-# Verify
-python -c "import mesa; import networkx; print('simulation deps OK')"
-```
-
----
-
-## Dependency Graph — Who Blocks Whom
+## Dependency Graph — Phase 2
 
 ```
 DATA ENGINEER (Person 4)
   │
-  ├─ weather_delhi.csv ────► ME (monsoon scenario driver)
-  ├─ synthetic_population.parquet ► ME (TODO: load pre-generated population file in UrbanModel)
-  └─ validation CSVs ──────► RESEARCH (Person 7) ──► ME (calibration feedback)
+  ├─ 2_fetch_census_demographics.py ──► ME (Realistic Population)
+  ├─ freight_nodes.json ──────────────► ME (Last-mile goods simulation)
+  └─ ride_hail_historical.csv ────────► AI & ME (Surge dynamics calibration)
+
+AI (Person 2)
+  │
+  ├─ Ride-hail Surge Algorithm ───────► ME (Mesa tick loop integration)
+  └─ Freight Models & Adaptation ─────► ME (Agent behavior update)
+
+BACKEND (Person 5)
+  │
+  └─ Adapter Integration ─────────────► ME (Swap fake_engine for MesaSimEngine)
 
 ME (Simulation Core)
-  └─ Snapshot stream ──────► BACKEND ──► FRONTEND
+  │
+  └─ Real Mesa Snapshot stream ───────► BACKEND ──► FRONTEND (Heatmaps, AQI rendering)
+
+RESEARCH (Person 7)
+  │
+  └─ anchors.yaml ────────────────────► ME (Calibration tuning)
 ```

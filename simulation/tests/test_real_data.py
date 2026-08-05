@@ -60,7 +60,7 @@ class TestOSMNetworkLoading:
         assert len(road_edges) > 3000
 
         # Check a sample edge
-        u, v, data = road_edges[0]
+        _u, _v, data = road_edges[0]
         assert data["type"] == "road"
         assert data["length"] > 0
         assert data["capacity"] > 0
@@ -274,8 +274,13 @@ class TestFullIntegration:
         model = UrbanModel(config)
 
         # Verify agents are assigned to real OSM node IDs (strings)
-        assert len(model.schedule.agents) == 50
-        for agent in model.schedule.agents:
+        from simulation.agents import CitizenAgent
+
+        citizen_agents = [
+            a for a in model.schedule.agents if isinstance(a, CitizenAgent)
+        ]
+        assert len(citizen_agents) == 50
+        for agent in citizen_agents:
             assert agent.home_node in model.network.g.nodes
             node_data = model.network.g.nodes[agent.home_node]
             assert 28.0 < node_data["lat"] < 29.0

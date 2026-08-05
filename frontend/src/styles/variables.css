@@ -2,30 +2,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Color Palette (Sleek Space/Dark Mode with Vivid HSL Accents) */
-  --bg-primary: hsl(222, 47%, 4%);
-  --bg-secondary: hsl(222, 47%, 7%);
-  --bg-tertiary: hsl(223, 47%, 11%);
-  --bg-glass: rgba(13, 20, 38, 0.6);
-  --border-glass: rgba(255, 255, 255, 0.06);
-  --border-glass-active: rgba(255, 255, 255, 0.12);
+  /* Color Palette (Futuristic Sci-Fi Dark Mode with Vivid HSL Accents) */
+  --bg-primary: hsl(230, 20%, 5%);
+  --bg-secondary: hsl(230, 16%, 8%);
+  --bg-tertiary: hsl(230, 14%, 12%);
+  --bg-glass: rgba(12, 12, 28, 0.7);
+  --border-glass: rgba(0, 242, 254, 0.1);
+  --border-glass-active: rgba(255, 0, 128, 0.35);
 
-  /* Accents & States */
-  --accent: hsl(210, 100%, 60%);        /* Bright Metro Blue */
-  --accent-glow: hsla(210, 100%, 60%, 0.15);
-  --accent-secondary: hsl(280, 80%, 65%); /* Purple-Indigo Policy Accent */
+  /* Vivid Futuristic Neon Gradients & Accents */
+  --accent: hsl(186, 100%, 46%);          /* Neon Electric Cyan */
+  --accent-glow: hsla(186, 100%, 46%, 0.2);
+  --accent-secondary: hsl(325, 100%, 55%); /* Hot Cyber Magenta */
 
   /* Semantic Colors */
-  --color-success: hsl(142, 72%, 45%);   /* Eco green / Intervention positive */
-  --color-warning: hsl(38, 92%, 50%);    /* Heavy traffic / delayed */
-  --color-danger: hsl(350, 89%, 60%);    /* Severe rain / overcrowding / closed road */
-  --color-info: hsl(190, 90%, 50%);      /* General updates */
+  --color-success: hsl(150, 84%, 43%);   /* Vivid Emerald Green */
+  --color-warning: hsl(38, 100%, 50%);    /* Neon Amber */
+  --color-danger: hsl(355, 100%, 60%);    /* Electric Crimson */
+  --color-info: hsl(200, 100%, 50%);      /* Neon Sky Blue */
 
   /* Text Colors */
-  --text-primary: hsl(210, 40%, 98%);
-  --text-secondary: hsl(215, 20%, 75%);
-  --text-muted: hsl(215, 16%, 50%);
-  --text-dark: hsl(222, 47%, 4%);
+  --text-primary: hsl(0, 0%, 98%);
+  --text-secondary: hsl(220, 20%, 80%);
+  --text-muted: hsl(220, 12%, 58%);
+  --text-dark: hsl(230, 20%, 5%);
 
   /* Typography Scale */
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

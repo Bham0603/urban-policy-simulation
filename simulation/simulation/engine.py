@@ -21,6 +21,18 @@ from simulation.agents import (
     UtilityWeights,
     ModeChoiceModel,
 )
+from simulation.economic_agents import (
+    MesaStallOwner,
+    MesaStoreManager,
+    MesaStoreStaff,
+    MesaDeliveryAgent,
+    WholesaleSupplier,
+    ShopChoiceModel,
+    MesaEnforcementOfficer,
+    MesaDrainageWorker,
+    MesaTrafficPolice,
+)
+import pandas as pd
 from simulation.metrics import calculate_metrics
 
 # Standard imports from the backend app schemas
@@ -71,9 +83,9 @@ class SimpleScheduler:
 
     def __init__(self, model: UrbanModel) -> None:
         self.model = model
-        self.agents: list[CitizenAgent] = []
+        self.agents: list[mesa.Agent] = []
 
-    def add(self, agent: CitizenAgent) -> None:
+    def add(self, agent: mesa.Agent) -> None:
         self.agents.append(agent)
 
     def step(self) -> None:
@@ -126,8 +138,10 @@ class UrbanModel(mesa.Model):
             avg_commute_minutes=28.0,
             mode_share={},
             metro_load_pct=0.0,
+            bus_load_pct=0.0,
             road_congestion_index=0.0,
             agents_commuting=0,
+            aqi_estimate=0.0,
         )
 
         # 5. Household registry for daily resource resets
@@ -136,13 +150,293 @@ class UrbanModel(mesa.Model):
         # 6. Track the last simulated day for daily hooks
         self._last_day = -1
 
-        # 7. Generate Synthetic Population of Citizen Agents
-        self._generate_synthetic_population(config.population)
+        # 7. Economic Agent Registries
+        self.stalls: dict[int, MesaStallOwner] = {}
+        self.stores: dict[int, MesaStoreManager] = {}
+        self.delivery_agents: dict[int, MesaDeliveryAgent] = {}
+        self.officers: dict[int, MesaEnforcementOfficer] = {}
+        self.drainage_workers: dict[int, MesaDrainageWorker] = {}
+        self.traffic_police: dict[int, MesaTrafficPolice] = {}
+        self.economic_agents: dict[int, mesa.Agent] = {}
+        self.supplier: WholesaleSupplier | None = None
+
+        # 8. Shared ShopChoiceModel
+        self.shop_choice_model = ShopChoiceModel(rng=self._np_rng)
+
+        # 9. Generate or Load Population
+        if getattr(config, "use_real_data", False) and config.population_path:
+            self._load_real_population(config.population_path)
+        else:
+            self._generate_synthetic_population(config.population)
+
+        # 10. Spawn Economic Agents
+        self._spawn_economic_agents()
 
     def reset_random_system(self, seed: int) -> None:
         """Ensure standard libraries and NumPy share the scenario seed."""
         random.seed(seed)
         np.random.seed(seed)
+
+    def _load_real_population(self, parquet_path: str) -> None:
+        """Load agents from pre-generated parquet file with real OSM node IDs."""
+        try:
+            df = pd.read_parquet(parquet_path)
+        except Exception as e:
+            print(f"Warning: Failed to load {parquet_path}: {e}")
+            self._generate_synthetic_population(self.config.population)
+            return
+
+        rng = self._np_rng
+
+        # Map string occupations to the enum
+        occ_map = {
+            "Corporate": Occupation.OFFICE_EXECUTIVE,
+            "Service": Occupation.BLUE_COLLAR_WORKER,
+            "Student": Occupation.STUDENT,
+            "Labor": Occupation.GIG_WORKER,
+            "Unemployed": Occupation.UNEMPLOYED,
+        }
+
+        agent_id = 0
+        hh_id = 0
+
+        for _, row in df.iterrows():
+            income = int(row["income_bracket"])
+            age = int(row["age"])
+            has_car = bool(row["has_car"])
+            has_bike = bool(row["has_bike"])
+            has_metro_pass = bool(row["has_metro_pass"])
+            occ_str = str(row["occupation"])
+            occupation = occ_map.get(occ_str, Occupation.BLUE_COLLAR_WORKER)
+
+            # Node assignment (ensure strings for OSM IDs)
+            home_node = str(row["home_node"])
+            work_node = (
+                str(row["work_node"])
+                if pd.notna(row["work_node"]) and str(row["work_node"]) != "nan"
+                else None
+            )
+            if (
+                occupation == Occupation.UNEMPLOYED
+                or occupation == Occupation.RETIRED_CITIZEN
+            ):
+                work_node = None
+
+            # Ensure home != work
+            if work_node and work_node == home_node:
+                pool = [n for n in self.network.g.nodes if n != home_node]
+                if pool:
+                    work_node = str(rng.choice(pool))
+
+            # Fallback households: 1 agent = 1 household
+            hh = Household(
+                id=hh_id,
+                member_ids=[agent_id],
+                has_car=has_car,
+                cars_owned=1 if has_car else 0,
+                cars_available=1 if has_car else 0,
+            )
+            self.households[hh_id] = hh
+
+            activity_locations = {ActivityType.HOME: home_node}
+            if work_node is not None:
+                activity_locations[ActivityType.WORK] = work_node
+
+            # Build simple schedule
+            activities = [Activity(ActivityType.HOME, home_node, 0, 0)]
+            leave_home = int(rng.normal(9 * 60, 30))
+            if work_node:
+                activities.append(
+                    Activity(ActivityType.WORK, work_node, leave_home, 9 * 60)
+                )
+                activities[0].duration_min = leave_home
+            else:
+                activities[0].duration_min = 24 * 60
+
+            schedule = ActivitySchedule(
+                activities=activities, leave_home_min=leave_home
+            )
+
+            agent = CitizenAgent(
+                unique_id=agent_id,
+                model=self,
+                home_node=home_node,
+                work_node=work_node,
+                income_bracket=income,
+                age=age,
+                has_car=has_car,
+                has_bike=has_bike,
+                has_metro_pass=has_metro_pass,
+                occupation=occupation,
+                household_id=hh_id,
+                household=hh,
+                schedule=schedule,
+                weights=_sample_weights(occupation, rng),
+                activity_locations=activity_locations,
+            )
+
+            self.schedule.add(agent)
+            agent_id += 1
+            hh_id += 1
+
+    def _spawn_economic_agents(self) -> None:
+        """Spawn Mesa-compatible economic agents (stalls, stores, delivery)."""
+        rng = self._np_rng
+        pop_size = len(self.schedule.agents)
+        if pop_size == 0:
+            pop_size = self.config.population
+
+        num_stalls = int(pop_size * 0.05)
+        num_managers = int(pop_size * 0.01)
+        num_staff = int(pop_size * 0.02)
+        num_delivery = int(pop_size * 0.02)
+
+        candidates = []
+        intersections = []
+        for node_id, data in self.network.g.nodes(data=True):
+            node_type = data.get("type")
+            if node_type == "metro_station":
+                candidates.append(str(node_id))
+            elif node_type == "intersection":
+                intersections.append(str(node_id))
+
+        if not candidates:
+            candidates = intersections
+        if not candidates:
+            return
+
+        # 1. Supplier
+        central_node = (
+            str(rng.choice(intersections)) if intersections else str(candidates[0])
+        )
+        self.supplier = WholesaleSupplier(
+            supplier_id=999999, location_node=central_node
+        )
+
+        agent_id_counter = 1000000
+
+        # 2. Stalls
+        stall_types = ["food", "clothes", "accessories"]
+        stall_weights = [0.5, 0.3, 0.2]
+        for _ in range(num_stalls):
+            home_node = (
+                str(rng.choice(intersections))
+                if intersections
+                else str(rng.choice(candidates))
+            )
+            vending_node = str(rng.choice(candidates))
+            stype = stall_types[int(rng.choice(len(stall_types), p=stall_weights))]
+
+            stall = MesaStallOwner(
+                model=self,
+                stall_id=agent_id_counter,
+                home_node=home_node,
+                vending_node=vending_node,
+                stall_type=stype,
+                inventory_decay_rate=(
+                    0.15 if stype == "food" else (0.02 if stype == "clothes" else 0.01)
+                ),
+                disruption_probability=(
+                    0.05 if stype == "food" else (0.08 if stype == "clothes" else 0.06)
+                ),
+            )
+            self.schedule.add(stall)
+            self.stalls[agent_id_counter] = stall
+            self.economic_agents[agent_id_counter] = stall
+            agent_id_counter += 1
+
+        # 3. Stores & Staff
+        staff_per_store = (
+            max(1, num_staff // max(1, num_managers)) if num_managers > 0 else 0
+        )
+        for _ in range(num_managers):
+            store_node = str(rng.choice(candidates))
+            manager = MesaStoreManager(
+                model=self, manager_id=agent_id_counter, store_node=store_node
+            )
+            self.schedule.add(manager)
+            self.stores[agent_id_counter] = manager
+            self.economic_agents[agent_id_counter] = manager
+            agent_id_counter += 1
+
+            for _ in range(staff_per_store):
+                home_node = (
+                    str(rng.choice(intersections))
+                    if intersections
+                    else str(rng.choice(candidates))
+                )
+                staff = MesaStoreStaff(
+                    model=self,
+                    staff_id=agent_id_counter,
+                    home_node=home_node,
+                    store_node=store_node,
+                )
+                manager.staff_ids.append(agent_id_counter)
+                self.schedule.add(staff)
+                self.economic_agents[agent_id_counter] = staff
+                agent_id_counter += 1
+
+        # 4. Delivery Agents
+        for _ in range(num_delivery):
+            home_node = (
+                str(rng.choice(intersections))
+                if intersections
+                else str(rng.choice(candidates))
+            )
+            delivery = MesaDeliveryAgent(
+                model=self, delivery_id=agent_id_counter, home_node=home_node
+            )
+            self.schedule.add(delivery)
+            self.delivery_agents[agent_id_counter] = delivery
+            self.economic_agents[agent_id_counter] = delivery
+            agent_id_counter += 1
+
+        # 5. Spawning Enforcement Officers, Drainage Workers, and Traffic Police
+        num_officers = max(1, int(pop_size * 0.002))
+        num_workers = max(1, int(pop_size * 0.002))
+        num_police = max(1, int(pop_size * 0.002))
+
+        # Patrol lists for Enforcement Officers (using candidate metro stations or intersections)
+        patrol_nodes = candidates if len(candidates) >= 2 else (intersections if intersections else [central_node])
+
+        for _ in range(num_officers):
+            # Select 3-4 nodes for this officer's patrol route
+            patrol_route = list(rng.choice(patrol_nodes, size=min(4, len(patrol_nodes)), replace=False))
+            if not patrol_route:
+                patrol_route = [central_node]
+            officer = MesaEnforcementOfficer(
+                model=self,
+                officer_id=agent_id_counter,
+                patrol_nodes=patrol_route
+            )
+            self.schedule.add(officer)
+            self.officers[agent_id_counter] = officer
+            self.economic_agents[agent_id_counter] = officer
+            agent_id_counter += 1
+
+        for _ in range(num_workers):
+            base_node = str(rng.choice(candidates))
+            worker = MesaDrainageWorker(
+                model=self,
+                worker_id=agent_id_counter,
+                base_node=base_node
+            )
+            self.schedule.add(worker)
+            self.drainage_workers[agent_id_counter] = worker
+            self.economic_agents[agent_id_counter] = worker
+            agent_id_counter += 1
+
+        for _ in range(num_police):
+            police_node = str(rng.choice(intersections)) if intersections else str(rng.choice(candidates))
+            police = MesaTrafficPolice(
+                model=self,
+                police_id=agent_id_counter,
+                intersection_node=police_node
+            )
+            self.schedule.add(police)
+            self.traffic_police[agent_id_counter] = police
+            self.economic_agents[agent_id_counter] = police
+            agent_id_counter += 1
 
     def _generate_synthetic_population(self, population_size: int) -> None:
         """Create a diverse, demographic-typical population of commuting agents.
@@ -473,25 +767,64 @@ class UrbanModel(mesa.Model):
 
     def step(self) -> None:
         """Advance the Mesa model exactly one step."""
+        # Clear drainage and traffic police nodes for the current tick
+        self.network.drained_nodes.clear()
+        self.network.traffic_police_nodes.clear()
+
         # 0. Daily hooks — reset household resources and adapt agent behavior
         current_day = self.sim_time_minutes // (24 * 60)
         if current_day > self._last_day:
+            if self._last_day >= 0:
+                # Not the first day — perform night reset
+                self._night_reset()
             self._last_day = current_day
             for hh in self.households.values():
                 hh.reset_daily_resources()
             for agent in self.schedule.agents:
-                agent.adapt_behavior()
+                if hasattr(agent, "adapt_behavior"):
+                    agent.adapt_behavior()
+
+        # Phase 2: Reset per-tick metro boarding counters (SUB-03, task 3.2)
+        self.network.reset_metro_load_tracking()
 
         # 1. Step the scheduler (activates all agents)
         self.schedule.step()
 
         # 2. Update physical road flow and travel times
-        active_commuters = [a for a in self.schedule.agents if a.state == "COMMUTING"]
+        active_commuters = [
+            a
+            for a in self.schedule.agents
+            if getattr(a, "state", None) == "COMMUTING" and hasattr(a, "current_route")
+        ]
         self.network.update_road_congestion(active_commuters)
+
+        # Phase 2: Advance bus vehicles for bunching simulation (SUB-03, task 3.3)
+        self.network.step_bus_vehicles(
+            tick=self.current_tick,
+            rain_intensity=self.network.weather_rain_intensity,
+        )
 
         # 3. Calculate aggregate metrics
         met_dict = calculate_metrics(self)
         self.metrics = AggregateMetrics(**met_dict)
+
+    def _night_reset(self) -> None:
+        """Reset the world state at the start of a new simulation day.
+
+        All agents return home, edge flows reset, and routing cache is
+        cleared. Agent memory is preserved across days so commuters
+        remember yesterday's frustrations and can adapt.
+        """
+        # Reset all agents to home
+        for agent in self.schedule.agents:
+            agent.reset_for_new_day()
+
+        # Reset all edge flows
+        for u, v in self.network.g.edges:
+            self.network.g.edges[u, v]["flow"] = 0
+
+        # Clear routing cache
+        self.network.clear_routing_cache()
 
 
 class MesaSimEngine:
@@ -504,6 +837,29 @@ class MesaSimEngine:
         self.config = config
         self.model = UrbanModel(config, data_paths=data_paths)
         self._pending_events: list[Event] = []
+
+        # Phase 2: Auto-load DMRC schedule if available (SUB-03, task 3.1)
+        self._load_dmrc_schedule()
+
+    def _load_dmrc_schedule(self) -> None:
+        """Auto-discover and load the DMRC schedule JSON file.
+
+        Searches for dmrc_schedule.json in:
+        1. simulation/data/ relative to this module
+        2. data/ directory relative to this module
+        """
+        from pathlib import Path
+
+        # Try simulation/data/dmrc_schedule.json relative to this file
+        module_dir = Path(__file__).resolve().parent
+        candidates = [
+            module_dir.parent / "data" / "dmrc_schedule.json",
+            module_dir / "data" / "dmrc_schedule.json",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                self.model.network.load_dmrc_schedule(candidate)
+                return
 
     @property
     def current_tick(self) -> int:
@@ -592,11 +948,24 @@ class MesaSimEngine:
 
         # 1. Map agent physical locations to grid bins
         for agent in self.model.schedule.agents:
-            node_id = (
-                agent.current_route[agent.route_index]
-                if (agent.state == "COMMUTING" and agent.current_route)
-                else agent.home_node
-            )
+            if hasattr(agent, "current_route"):
+                node_id = (
+                    agent.current_route[agent.route_index]
+                    if (
+                        getattr(agent, "state", None) == "COMMUTING"
+                        and getattr(agent, "current_route", None)
+                    )
+                    else agent.home_node
+                )
+            else:
+                node_id = getattr(
+                    agent,
+                    "current_location",
+                    getattr(agent, "store_node", getattr(agent, "home_node", None)),
+                )
+
+            if not node_id:
+                continue
 
             # Retrieve node coordinates
             node_data = self.model.network.g.nodes[node_id]

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # --- Simulation engine selection (the seam to SUB-01) ---
     # "fake" -> deterministic stub (app/sim/fake_engine.py), runnable today.
     # "mesa" -> real engine once SUB-01 lands and implements the SimEngine Protocol.
-    sim_engine: str = "fake"
+    sim_engine: str = "mesa"
 
     # Wall-clock tick cadence for the live stream (seconds). PROJECT_SPEC target: 1 tick/sec.
     tick_interval_seconds: float = 1.0
