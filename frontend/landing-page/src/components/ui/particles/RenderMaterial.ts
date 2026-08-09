@@ -39,7 +39,7 @@ const renderFragmentShader = `
     
     float alpha = smoothstep(0.5, 0.1, dist);
 
-    gl_FragColor = vec4(vColor, alpha * 0.8);
+    gl_FragColor = vec4(vColor, alpha * 0.4);
   }
 `;
 
@@ -50,7 +50,7 @@ export class RenderMaterial extends THREE.ShaderMaterial {
       fragmentShader: renderFragmentShader,
       uniforms: {
         positions: { value: null },
-        uPointSize: { value: 1.5 }
+        uPointSize: { value: 1.2 }
       },
       transparent: true,
       blending: THREE.AdditiveBlending,
