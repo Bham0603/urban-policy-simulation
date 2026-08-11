@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import L from "leaflet";
+import { useEffect, useRef } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { GridCell } from "../lib/localSimulator";
 
 interface MapSimulationProps {
@@ -15,8 +16,8 @@ interface MapSimulationProps {
 interface MapParticle {
   progress: number;
   speed: number;
-  type: "citizen" | "delivery";
-  pathType: "radial" | "concentric" | "metro";
+  type: "delivery" | "citizen";
+  pathType: "metro" | "radial" | "concentric";
   lineIndex: number;
   direction: 1 | -1;
   lat: number;
@@ -32,13 +33,12 @@ export default function MapSimulation({
 }: MapSimulationProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const rectsRef = useRef<L.Rectangle[]>([]);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapLoadedRef = useRef(false);
   const particlesRef = useRef<MapParticle[]>([]);
 
   const centerLat = 28.6328;
   const centerLon = 77.2197;
-  const maxSpan = 0.018; // Degrees span for radial nodes
 
   const yellowLineCoords = [
     [28.6580, 77.2160],
@@ -85,7 +85,6 @@ export default function MapSimulation({
     };
   };
 
-  // DMRC Metro Stations Coords
   const stations = [
     { coords: [28.6328, 77.2197], name: "Rajiv Chowk" },
     { coords: [28.6431, 77.2214], name: "New Delhi Station" },
@@ -94,105 +93,179 @@ export default function MapSimulation({
     { coords: [28.6300, 77.2295], name: "Barakhamba Road" },
   ];
 
-  // Initialize Map
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    // 1. Create Leaflet Map instance
-    const map = L.map(mapContainerRef.current, {
-      center: [centerLat, centerLon],
-      zoom: 15.0, // Zoomed in to focus on Connaught Place rings
-      zoomControl: false,
-      attributionControl: false,
-      maxBounds: [
-        [28.60, 77.18],
-        [28.67, 77.26],
-      ],
-      minZoom: 13,
-      maxZoom: 16,
-    });
-    mapRef.current = map;
-
-    // 2. Add CartoDB Dark Matter tile layer
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-    }).addTo(map);
-
-    // 3. Draw Metro Tracks
-    // Yellow Line (North-South)
-    L.polyline(
-      [
-        [28.6580, 77.2160],
-        [28.6431, 77.2214],
-        [28.6328, 77.2197],
-        [28.6231, 77.2150],
-        [28.6080, 77.2090],
-      ] as L.LatLngExpression[],
-      {
-        color: "rgba(234, 179, 8, 0.45)", // DMRC Yellow Line
-        weight: 3.5,
-      }
-    ).addTo(map);
-
-    // Blue Line (East-West)
-    L.polyline(
-      [
-        [28.6360, 77.1950],
-        [28.6395, 77.2085],
-        [28.6328, 77.2197],
-        [28.6300, 77.2295],
-        [28.6260, 77.2480],
-      ] as L.LatLngExpression[],
-      {
-        color: "rgba(59, 130, 246, 0.45)", // DMRC Blue Line
-        weight: 3.5,
-      }
-    ).addTo(map);
-
-    // 4. Draw Station Nodes
-    stations.forEach((st) => {
-      L.circleMarker(st.coords as L.LatLngExpression, {
-        radius: st.name === "Rajiv Chowk" ? 6 : 4.5,
-        fillColor: "#3b82f6",
-        fillOpacity: 0.8,
-        color: "#ffffff",
-        weight: 1,
-      })
-        .addTo(map)
-        .bindTooltip(st.name, { permanent: false, direction: "top", opacity: 0.85 });
-    });
-
-    // 5. Draw 100 Congestion Grid Cells
-    const rects: L.Rectangle[] = [];
+  const generateGridGeoJSON = (gridData: GridCell[]) => {
+    const features = [];
     const rows = 10;
     const cols = 10;
-    // Map bounds spans approx 0.05 degrees total
     const cellW = 0.005;
     const cellH = 0.005;
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        const cell = gridData[idx];
+        const congestion = cell ? cell.congestion : 0.0;
+
         const cellLat = centerLat + (r - rows / 2) * cellH;
         const cellLon = centerLon + (c - cols / 2) * cellW;
 
-        const bounds: L.LatLngBoundsExpression = [
-          [cellLat - cellH / 2, cellLon - cellW / 2],
-          [cellLat + cellH / 2, cellLon + cellW / 2],
-        ];
+        const minLon = cellLon - cellW / 2;
+        const maxLon = cellLon + cellW / 2;
+        const minLat = cellLat - cellH / 2;
+        const maxLat = cellLat + cellH / 2;
 
-        const rect = L.rectangle(bounds, {
-          color: "rgba(255, 255, 255, 0.015)",
-          weight: 0.5,
-          fillColor: "rgb(239, 68, 68)",
-          fillOpacity: 0.0,
-        }).addTo(map);
-
-        rects.push(rect);
+        features.push({
+          type: "Feature",
+          properties: {
+            id: idx,
+            congestion: congestion
+          },
+          geometry: {
+            type: "Polygon",
+            coordinates: [[
+              [minLon, minLat],
+              [maxLon, minLat],
+              [maxLon, maxLat],
+              [minLon, maxLat],
+              [minLon, minLat]
+            ]]
+          }
+        });
       }
     }
-    rectsRef.current = rects;
 
-    // 6. Initialize geolocated particles
+    return {
+      type: "FeatureCollection",
+      features: features
+    } as any;
+  };
+
+  // Initialize Map
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/dark-v11",
+      center: [centerLon, centerLat], // Mapbox uses [longitude, latitude]
+      zoom: 15.0,
+      attributionControl: false,
+      maxBounds: [
+        [77.18, 28.60],
+        [77.26, 28.67]
+      ],
+      minZoom: 13,
+      maxZoom: 17,
+    });
+    mapRef.current = map;
+
+    map.on("load", () => {
+      mapLoadedRef.current = true;
+
+      // 1. Add Yellow Line Metro Track
+      map.addSource("yellow-line", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: yellowLineCoords.map(c => [c[1], c[0]])
+          }
+        }
+      });
+      map.addLayer({
+        id: "yellow-line-layer",
+        type: "line",
+        source: "yellow-line",
+        paint: {
+          "line-color": "#eab308",
+          "line-width": 3.5,
+          "line-opacity": 0.55
+        }
+      });
+
+      // 2. Add Blue Line Metro Track
+      map.addSource("blue-line", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: blueLineCoords.map(c => [c[1], c[0]])
+          }
+        }
+      });
+      map.addLayer({
+        id: "blue-line-layer",
+        type: "line",
+        source: "blue-line",
+        paint: {
+          "line-color": "#3b82f6",
+          "line-width": 3.5,
+          "line-opacity": 0.55
+        }
+      });
+
+      // 3. Add Congestion Grid Overlay
+      map.addSource("grid-overlay", {
+        type: "geojson",
+        data: generateGridGeoJSON(grid)
+      });
+      map.addLayer({
+        id: "grid-layer",
+        type: "fill",
+        source: "grid-overlay",
+        paint: {
+          "fill-color": "#ef4444",
+          "fill-opacity": [
+            "case",
+            [">", ["get", "congestion"], 0.15],
+            ["*", ["get", "congestion"], 0.18],
+            0.0
+          ],
+          "fill-outline-color": "rgba(255, 255, 255, 0.02)"
+        }
+      });
+
+      // 4. Add Station Markers
+      map.addSource("stations", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: stations.map(s => ({
+            type: "Feature",
+            properties: { name: s.name },
+            geometry: {
+              type: "Point",
+              coordinates: [s.coords[1], s.coords[0]]
+            }
+          }))
+        }
+      });
+      map.addLayer({
+        id: "stations-layer",
+        type: "circle",
+        source: "stations",
+        paint: {
+          "circle-radius": [
+            "case",
+            ["==", ["get", "name"], "Rajiv Chowk"],
+            6,
+            4.5
+          ],
+          "circle-color": "#3b82f6",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1,
+          "circle-opacity": 0.8
+        }
+      });
+    });
+
+    // 5. Initialize particles
     const particles: MapParticle[] = [];
     const count = 160;
 
@@ -218,22 +291,18 @@ export default function MapSimulation({
     return () => {
       map.remove();
       mapRef.current = null;
+      mapLoadedRef.current = false;
     };
   }, []);
 
   // Update Grid Overlay styling when grid data changes
   useEffect(() => {
-    if (rectsRef.current.length === 0 || grid.length === 0) return;
+    if (!mapRef.current || !mapLoadedRef.current || grid.length === 0) return;
 
-    rectsRef.current.forEach((rect, idx) => {
-      const cell = grid[idx];
-      if (cell) {
-        // Higher congestion → denser red fill overlay
-        rect.setStyle({
-          fillOpacity: cell.congestion > 0.15 ? cell.congestion * 0.18 : 0.0,
-        });
-      }
-    });
+    const source = mapRef.current.getSource("grid-overlay") as mapboxgl.GeoJSONSource;
+    if (source) {
+      source.setData(generateGridGeoJSON(grid));
+    }
   }, [grid]);
 
   // Sync canvas dimensions and particle calculations inside animation loop
@@ -248,7 +317,6 @@ export default function MapSimulation({
     let animId: number;
 
     const updateAndDrawParticles = () => {
-      // 1. Resize canvas dynamically to match map container dimensions
       const width = canvasRef.current?.parentElement?.clientWidth || 500;
       const height = canvasRef.current?.parentElement?.clientHeight || 500;
       if (canvas.width !== width || canvas.height !== height) {
@@ -260,52 +328,45 @@ export default function MapSimulation({
 
       const speedMod = Math.max(0.25, 1 - roadCongestion * 0.75);
 
-      // 2. Update particle positions on map coordinates & project to pixels
       particlesRef.current.forEach((p) => {
         if (p.pathType === "metro") {
-          // Interpolate exactly along Yellow or Blue Line coordinates
           const isYellow = p.lineIndex % 2 === 0;
           const route = isYellow ? yellowLineCoords : blueLineCoords;
           const pt = interpolatePath(route, p.progress);
           p.lat = pt.lat;
           p.lon = pt.lon;
         } else if (p.pathType === "radial") {
-          // Slide exactly along Connaught Place's geolocated radial roads
           const endpoint = radialEndpoints[p.lineIndex % radialEndpoints.length];
           p.lat = centerLat + (endpoint[0] - centerLat) * p.progress;
           p.lon = centerLon + (endpoint[1] - centerLon) * p.progress;
         } else {
-          // Orbit exactly along Connaught Place's circular concentric roads
           const ring = concentricRadii[p.lineIndex % concentricRadii.length];
           const angle = p.progress * Math.PI * 2;
           p.lat = centerLat + Math.cos(angle) * ring.lat;
           p.lon = centerLon + Math.sin(angle) * ring.lon;
         }
 
-        // Map geocoordinates to screen pixels
-        const latlng = L.latLng(p.lat, p.lon);
-        const point = map.latLngToContainerPoint(latlng);
+        // Mapbox GL coordinate projection: [lng, lat]
+        const point = map.project([p.lon, p.lat]);
 
-        // Draw particle
         ctx.beginPath();
         ctx.arc(point.x, point.y, p.type === "delivery" ? 3.2 : 2.0, 0, Math.PI * 2);
         
         if (p.type === "delivery") {
-          ctx.fillStyle = "#f97316"; // Orange
+          ctx.fillStyle = "#f97316";
           ctx.shadowBlur = 3;
           ctx.shadowColor = "#f97316";
           ctx.fill();
           ctx.shadowBlur = 0;
         } else {
-          ctx.fillStyle = p.pathType === "metro" ? "#3b82f6" : "#22d3ee"; // DMRC Blue vs Cyan
+          ctx.fillStyle = p.pathType === "metro" ? "#3b82f6" : "#22d3ee";
           ctx.fill();
         }
 
-        // Update progress
         if (isPlaying) {
           let speed = p.speed * speedMod;
           if (p.type === "citizen" && rainIntensity > 0.3) {
-            speed *= 0.75; // slow down walk/bike in downpours
+            speed *= 0.75;
           }
           p.progress += speed * p.direction;
 
@@ -319,7 +380,6 @@ export default function MapSimulation({
         }
       });
 
-      // 3. Overlay rain streaks in screen space
       if (rainIntensity > 0) {
         ctx.strokeStyle = "rgba(174, 207, 238, 0.15)";
         ctx.lineWidth = 1.2;
@@ -359,7 +419,7 @@ export default function MapSimulation({
 
   return (
     <div className="relative w-full aspect-square md:max-w-2xl bg-[#0c0a09] rounded-3xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md">
-      {/* Leaflet map container */}
+      {/* Mapbox GL container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       {/* Synchronized canvas for particle rendering */}
       <canvas
