@@ -103,16 +103,16 @@ export function InsightsPanel({
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.2 }}
-      className="relative w-full rounded-3xl p-6 glass-blur-xl glass-surface glass-border border-white/10 overflow-hidden shadow-xl"
+      className="relative w-full rounded-2xl p-3.5 glass-blur-xl glass-surface glass-border border-white/10 overflow-hidden shadow-xl"
     >
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-2">
         <Sparkles className="w-5 h-5 text-purple-400" />
-        <h3 className="text-sm font-semibold tracking-wider text-white uppercase font-sans">
+        <h3 className="text-xs font-semibold tracking-wider text-white uppercase font-sans">
           AI Scenario Explanation (Strata-Insights)
         </h3>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         {causalStory.map((paragraph, index) => {
           const isWarning = paragraph.includes("Warning:") || paragraph.includes("critical");
           const isAlert = paragraph.includes("shutdown") || paragraph.includes("restricted");
@@ -120,7 +120,7 @@ export function InsightsPanel({
           return (
             <div
               key={index}
-              className={`flex items-start gap-3 p-3.5 rounded-2xl ${
+              className={`flex items-start gap-2 p-2 rounded-xl ${
                 isWarning
                   ? "bg-red-500/10 border border-red-500/20 text-red-200"
                   : isAlert
@@ -129,13 +129,13 @@ export function InsightsPanel({
               }`}
             >
               {isWarning ? (
-                <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0 text-red-400" />
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
               ) : isAlert ? (
-                <BadgeAlert className="w-5 h-5 mt-0.5 shrink-0 text-amber-400" />
+                <BadgeAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
               ) : (
-                <ArrowRight className="w-4 h-4 mt-1 shrink-0 text-purple-400" />
+                <ArrowRight className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400" />
               )}
-              <p className="text-xs font-light leading-relaxed font-sans">{paragraph}</p>
+              <p className="text-[11px] font-light leading-relaxed font-sans">{paragraph}</p>
             </div>
           );
         })}

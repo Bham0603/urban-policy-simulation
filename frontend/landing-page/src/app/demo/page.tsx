@@ -481,94 +481,94 @@ export default function DemoPage() {
       <ParticleBackground />
 
       {/* Main dashboard grid container */}
-      <div className="relative z-10 w-full max-w-[95rem] mx-auto px-4 py-3 flex flex-col h-full overflow-hidden gap-3 flex-grow">
+      <div className="relative z-10 w-full max-w-[95rem] mx-auto px-2 py-1.5 flex flex-col h-full overflow-hidden gap-2 flex-grow">
         
         {/* Top Header Bar */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-white/5 pb-2 shrink-0">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-1.5 border-b border-white/5 pb-1 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest text-purple-400 bg-purple-950/45 border border-purple-500/30">
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono tracking-widest text-purple-400 bg-purple-950/45 border border-purple-500/30">
                 DECISION SANDBOX
               </span>
               {connectionMode === "connecting" && (
                 <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[10px] font-mono text-amber-400/80">Connecting to Strata Engine...</span>
+                  <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[9px] font-mono text-amber-400/80">Connecting...</span>
                 </>
               )}
               {connectionMode === "backend" && (
                 <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-mono text-emerald-400/90">Strata Engine Connected (Production)</span>
+                  <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[9px] font-mono text-emerald-400/90">Strata Engine Connected</span>
                 </>
               )}
               {connectionMode === "local" && (
                 <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                  <span className="text-[10px] font-mono text-stone-400">Strata Engine Offline (Local Fallback Active)</span>
+                  <span className="w-1 h-1 rounded-full bg-orange-400 animate-pulse" />
+                  <span className="text-[9px] font-mono text-stone-400">Offline (Local Fallback)</span>
                 </>
               )}
             </div>
-            <h1 className="text-xl md:text-2xl font-light tracking-tight mt-0.5 text-white">
+            <h1 className="text-lg font-light tracking-tight mt-0 text-white">
               STRATA <span className="text-stone-500 font-extralight">| Command Center</span>
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => {
                 setTourStep(0);
                 setIsTourOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 text-xs font-light transition-all border border-white/5 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-stone-300 text-[10px] font-light transition-all border border-white/5 cursor-pointer"
             >
-              <HelpCircle className="w-4 h-4 text-purple-400" />
+              <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
               Guide Tour
             </button>
             <LiquidGlassButton
               onClick={triggerReset}
-              className="rounded-xl px-3 py-1.5 text-xs font-semibold"
+              className="rounded-lg px-2.5 py-1 text-[10px] font-semibold"
             >
               <span className="flex items-center gap-1">
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 Reset Board
               </span>
             </LiquidGlassButton>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch flex-grow min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-stretch flex-grow min-h-0">
           
           {/* LEFT PANEL: Policy Controls (lg:col-span-3) */}
-          <section className="lg:col-span-3 flex flex-col gap-3 h-full overflow-y-auto pr-1 select-none scrollbar-thin">
+          <section className="lg:col-span-3 flex flex-col gap-2 h-full overflow-y-auto pr-0.5 select-none scrollbar-thin">
             
             {/* Simulation Engine Controls */}
-            <LiquidGlassCard className="p-4 shrink-0" variant="default">
-              <div className="flex items-center justify-between font-mono text-xs">
-                <div className="flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="font-semibold text-stone-300">Engine status</span>
+            <LiquidGlassCard className="p-2.5 shrink-0" variant="default">
+              <div className="flex items-center justify-between font-mono text-[10px]">
+                <div className="flex items-center gap-1">
+                  <Activity className="w-3 h-3 text-purple-400" />
+                  <span className="font-semibold text-stone-300">Engine Status</span>
                 </div>
-                <span className="text-[10px] text-stone-500 font-mono">TICK {tick}</span>
+                <span className="text-[9px] text-stone-500 font-mono">TICK {tick}</span>
               </div>
 
-              <div className="flex items-center justify-between gap-2 mt-3 bg-stone-900/60 p-2.5 rounded-xl border border-white/5">
-                <span className="text-xs font-mono text-stone-400">SIM TIME:</span>
-                <span className="text-xs font-mono text-purple-400 font-bold">{timeStr}</span>
+              <div className="flex items-center justify-between gap-1.5 mt-2 bg-stone-900/60 p-2 rounded-lg border border-white/5">
+                <span className="text-[10px] font-mono text-stone-400">SIM TIME:</span>
+                <span className="text-[10px] font-mono text-purple-400 font-bold">{timeStr}</span>
               </div>
 
-              <div className="flex mt-3">
+              <div className="flex mt-2">
                 <LiquidGlassButton
                   onClick={togglePlay}
-                  className="w-full rounded-xl py-2 justify-center text-xs font-bold"
+                  className="w-full rounded-lg py-1.5 justify-center text-[11px] font-bold"
                 >
                   {isPlaying ? (
-                    <span className="flex items-center gap-1.5">
-                      <Pause className="w-4 h-4 fill-current" /> Pause Simulation
+                    <span className="flex items-center gap-1">
+                      <Pause className="w-3.5 h-3.5 fill-current" /> Pause Simulation
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1.5">
-                      <Play className="w-4 h-4 fill-current" /> Run Simulation
+                    <span className="flex items-center gap-1">
+                      <Play className="w-3.5 h-3.5 fill-current" /> Run Simulation
                     </span>
                   )}
                 </LiquidGlassButton>
@@ -576,13 +576,13 @@ export default function DemoPage() {
             </LiquidGlassCard>
 
             {/* Environmental & Interventions */}
-            <LiquidGlassCard className="p-4 flex-grow flex flex-col gap-4 overflow-hidden" variant="default">
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <span className="text-[10px] font-mono text-stone-500 uppercase block font-semibold">Select Control Category</span>
+            <LiquidGlassCard className="p-2.5 flex-grow flex flex-col gap-3 overflow-hidden" variant="default">
+              <div className="flex flex-col gap-1 shrink-0">
+                <span className="text-[9px] font-mono text-stone-500 uppercase block font-semibold">Select Control Category</span>
                 <select
                   value={selectedControlCategory}
                   onChange={(e) => setSelectedControlCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs bg-stone-900 border border-white/10 rounded-xl text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
+                  className="w-full px-2 py-1 text-[11px] bg-stone-900 border border-white/10 rounded-lg text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
                 >
                   <option value="all">All Controls</option>
                   <option value="weather">Weather Events</option>
@@ -591,17 +591,17 @@ export default function DemoPage() {
                 </select>
               </div>
 
-              <div className="flex-grow flex flex-col gap-4 overflow-y-auto pr-0.5">
+              <div className="flex-grow flex flex-col gap-3 overflow-y-auto pr-0.5">
                 {(selectedControlCategory === "all" || selectedControlCategory === "weather") && (
-                  <div className="border-t border-white/5 pt-3 first:border-0 first:pt-0">
-                    <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
-                      <CloudRain className="w-4 h-4 text-sky-400" />
+                  <div className="border-t border-white/5 pt-2.5 first:border-0 first:pt-0">
+                    <h2 className="text-[10px] font-bold font-mono tracking-wider text-stone-300 uppercase mb-2 flex items-center gap-1">
+                      <CloudRain className="w-3.5 h-3.5 text-sky-400" />
                       Weather Events
                     </h2>
                     
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div>
-                        <div className="flex justify-between text-xs mb-1">
+                        <div className="flex justify-between text-[11px] mb-0.5">
                           <span className="font-light text-stone-400">Monsoon Rain Intensity</span>
                           <span className="font-mono text-purple-400 font-semibold">{rainInput}%</span>
                         </div>
@@ -613,7 +613,7 @@ export default function DemoPage() {
                           onChange={(e) => setRainInput(Number(e.target.value))}
                           className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
                         />
-                        <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                        <div className="flex justify-between text-[8px] text-stone-500 mt-0.5 font-mono">
                           <span>Dry</span>
                           <span>Downpour</span>
                         </div>
@@ -623,17 +623,17 @@ export default function DemoPage() {
                 )}
 
                 {(selectedControlCategory === "all" || selectedControlCategory === "transit" || selectedControlCategory === "taxation") && (
-                  <div className="border-t border-white/5 pt-3 first:border-0 first:pt-0">
-                    <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
-                      <Zap className="w-4 h-4 text-purple-400" />
+                  <div className="border-t border-white/5 pt-2.5 first:border-0 first:pt-0">
+                    <h2 className="text-[10px] font-bold font-mono tracking-wider text-stone-300 uppercase mb-2 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-purple-400" />
                       Policy Interventions
                     </h2>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* Bus capacity boost */}
                       {(selectedControlCategory === "all" || selectedControlCategory === "transit") && (
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between text-[11px] mb-0.5">
                             <span className="font-light text-stone-400">Bus Capacity Level</span>
                             <span className="font-mono text-purple-400 font-semibold">{busCapInput}%</span>
                           </div>
@@ -645,7 +645,7 @@ export default function DemoPage() {
                             onChange={(e) => setBusCapInput(Number(e.target.value))}
                             className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
                           />
-                          <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                          <div className="flex justify-between text-[8px] text-stone-500 mt-0.5 font-mono">
                             <span>50% Choked</span>
                             <span>150% Boosted</span>
                           </div>
@@ -655,7 +655,7 @@ export default function DemoPage() {
                       {/* Fuel tax */}
                       {(selectedControlCategory === "all" || selectedControlCategory === "taxation") && (
                         <div>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between text-[11px] mb-0.5">
                             <span className="font-light text-stone-400">Carbon Fuel Levy</span>
                             <span className="font-mono text-purple-400 font-semibold">₹{fuelInput}/L</span>
                           </div>
@@ -667,7 +667,7 @@ export default function DemoPage() {
                             onChange={(e) => setFuelInput(Number(e.target.value))}
                             className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
                           />
-                          <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                          <div className="flex justify-between text-[8px] text-stone-500 mt-0.5 font-mono">
                             <span>No Levy</span>
                             <span>₹200/L Tax</span>
                           </div>
@@ -676,26 +676,26 @@ export default function DemoPage() {
 
                       {/* Metro shutdown toggles */}
                       {(selectedControlCategory === "all" || selectedControlCategory === "transit") && (
-                        <div className="pt-2 border-t border-white/5 space-y-2">
-                          <span className="text-[10px] font-mono text-stone-500 uppercase block">Transit Line Health</span>
+                        <div className="pt-2 border-t border-white/5 space-y-1.5">
+                          <span className="text-[9px] font-mono text-stone-500 uppercase block">Transit Line Health</span>
                           
-                          <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
+                          <label className="flex items-center justify-between text-[11px] font-light text-stone-400 cursor-pointer p-0.5 px-1 rounded hover:bg-white/5 transition-colors">
                             <span>Yellow Line Outage</span>
                             <input
                               type="checkbox"
                               checked={yellowLineDisabled}
                               onChange={(e) => setYellowLineDisabled(e.target.checked)}
-                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
+                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3 h-3 cursor-pointer accent-purple-500"
                             />
                           </label>
 
-                          <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
+                          <label className="flex items-center justify-between text-[11px] font-light text-stone-400 cursor-pointer p-0.5 px-1 rounded hover:bg-white/5 transition-colors">
                             <span>Blue Line Outage</span>
                             <input
                               type="checkbox"
                               checked={blueLineDisabled}
                               onChange={(e) => setBlueLineDisabled(e.target.checked)}
-                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
+                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3 h-3 cursor-pointer accent-purple-500"
                             />
                           </label>
                         </div>
@@ -708,7 +708,7 @@ export default function DemoPage() {
           </section>
 
           {/* CENTER PANEL: Canvas Map & Insights (lg:col-span-5) */}
-          <section className="lg:col-span-5 flex flex-col gap-3 h-full overflow-hidden">
+          <section className="lg:col-span-5 flex flex-col gap-2 h-full overflow-hidden">
             
             {/* Visual network simulator */}
             <MapSimulation
@@ -721,7 +721,7 @@ export default function DemoPage() {
 
             {/* Simulated AI insights explaining causality */}
             {metrics && (
-              <div className="h-44 shrink-0 overflow-y-auto">
+              <div className="h-[150px] shrink-0 overflow-y-auto">
                 <InsightsPanel
                   metrics={metrics}
                   disabledMetroLines={
@@ -737,47 +737,47 @@ export default function DemoPage() {
           </section>
 
           {/* RIGHT PANEL: Live Telemetry Metrics & Challenges (lg:col-span-4) */}
-          <section className="lg:col-span-4 flex flex-col gap-3 h-full overflow-y-auto pr-1">
+          <section className="lg:col-span-4 flex flex-col gap-2 h-full overflow-y-auto pr-0.5">
             
             {/* Core gauges */}
-            <LiquidGlassCard className="p-4 shrink-0" variant="default">
-              <h2 className="text-xs font-mono tracking-widest text-stone-400 uppercase mb-3 flex items-center gap-1.5 font-semibold">
-                <Sparkles className="w-4 h-4 text-purple-400" />
+            <LiquidGlassCard className="p-2.5 shrink-0" variant="default">
+              <h2 className="text-[10px] font-mono tracking-widest text-stone-400 uppercase mb-2 flex items-center gap-1.5 font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
                 Live City Telemetry
               </h2>
 
               {metrics && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   {/* Commute time metric */}
-                  <div className="p-3 bg-stone-900/60 rounded-xl border border-white/5 flex flex-col justify-between">
-                    <span className="text-[9px] font-mono text-stone-500 uppercase">Avg Commute</span>
-                    <div className="my-1 flex items-baseline">
-                      <span className="text-xl font-light text-white font-mono">
+                  <div className="p-2 bg-stone-900/60 rounded-lg border border-white/5 flex flex-col justify-between">
+                    <span className="text-[8px] font-mono text-stone-500 uppercase">Avg Commute</span>
+                    <div className="my-0.5 flex items-baseline">
+                      <span className="text-lg font-light text-white font-mono">
                         {metrics.avg_commute_minutes}
                       </span>
-                      <span className="text-[9px] text-stone-500 ml-1">mins</span>
+                      <span className="text-[8px] text-stone-500 ml-0.5">mins</span>
                     </div>
                     {/* Commute sparkline */}
-                    <div className="h-5 flex items-end gap-0.5 pt-1">
+                    <div className="h-4 flex items-end gap-0.5 pt-0.5">
                       {commuteHistory.map((val, i) => (
                         <div
                           key={i}
                           style={{ height: `${Math.min(100, (val / 80) * 100)}%` }}
-                          className="flex-1 min-w-[2px] bg-purple-400/60 rounded-sm"
+                          className="flex-1 min-w-[1.5px] bg-purple-400/60 rounded-sm"
                         />
                       ))}
                     </div>
                   </div>
 
                   {/* AQI metric */}
-                  <div className="p-3 bg-stone-900/60 rounded-xl border border-white/5 flex flex-col justify-between">
-                    <span className="text-[9px] font-mono text-stone-500 uppercase">AQI Estimate</span>
-                    <div className="my-1 flex items-baseline justify-between">
-                      <span className="text-xl font-light text-white font-mono">
+                  <div className="p-2 bg-stone-900/60 rounded-lg border border-white/5 flex flex-col justify-between">
+                    <span className="text-[8px] font-mono text-stone-500 uppercase">AQI Estimate</span>
+                    <div className="my-0.5 flex items-baseline justify-between">
+                      <span className="text-lg font-light text-white font-mono">
                         {metrics.aqi_estimate}
                       </span>
                       <span
-                        className={`text-[8px] font-mono px-1 py-0.5 rounded font-semibold ${
+                        className={`text-[7px] font-mono px-1 py-0.2 rounded font-semibold ${
                           metrics.aqi_estimate > 200
                             ? "bg-red-950/45 text-red-400 border border-red-500/20"
                             : metrics.aqi_estimate > 100
@@ -785,16 +785,16 @@ export default function DemoPage() {
                             : "bg-emerald-950/45 text-emerald-400 border border-emerald-500/20"
                         }`}
                       >
-                        {metrics.aqi_estimate > 200 ? "POOR" : metrics.aqi_estimate > 100 ? "MODERATE" : "GOOD"}
+                        {metrics.aqi_estimate > 200 ? "POOR" : metrics.aqi_estimate > 100 ? "MOD" : "GOOD"}
                       </span>
                     </div>
                     {/* AQI sparkline */}
-                    <div className="h-5 flex items-end gap-0.5 pt-1">
+                    <div className="h-4 flex items-end gap-0.5 pt-0.5">
                       {aqiHistory.map((val, i) => (
                         <div
                           key={i}
                           style={{ height: `${Math.min(100, (val / 350) * 100)}%` }}
-                          className={`flex-1 min-w-[2px] rounded-sm ${
+                          className={`flex-1 min-w-[1.5px] rounded-sm ${
                             val > 200 ? "bg-red-400/60" : val > 100 ? "bg-amber-400/60" : "bg-emerald-400/60"
                           }`}
                         />
@@ -803,8 +803,8 @@ export default function DemoPage() {
                   </div>
 
                   {/* Road Congestion metric */}
-                  <div className="p-3 bg-stone-900/60 rounded-xl border border-white/5 col-span-2">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-stone-500 uppercase mb-1">
+                  <div className="p-2 bg-stone-900/60 rounded-lg border border-white/5 col-span-2">
+                    <div className="flex justify-between items-center text-[8px] font-mono text-stone-500 uppercase mb-0.5">
                       <span>Road Congestion Index</span>
                       <span className="text-white font-semibold font-mono">
                         {Math.round(metrics.road_congestion_index * 100)}%
@@ -825,8 +825,8 @@ export default function DemoPage() {
                   </div>
 
                   {/* Metro and Bus loads */}
-                  <div className="p-3 bg-stone-900/60 rounded-xl border border-white/5">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-stone-500 uppercase mb-1">
+                  <div className="p-2 bg-stone-900/60 rounded-lg border border-white/5">
+                    <div className="flex justify-between items-center text-[8px] font-mono text-stone-500 uppercase mb-0.5">
                       <span>Metro Load</span>
                       <span className="text-sky-400 font-mono font-medium">
                         {Math.round(metrics.metro_load_pct)}%
@@ -840,8 +840,8 @@ export default function DemoPage() {
                     </div>
                   </div>
 
-                  <div className="p-3 bg-stone-900/60 rounded-xl border border-white/5">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-stone-500 uppercase mb-1">
+                  <div className="p-2 bg-stone-900/60 rounded-lg border border-white/5">
+                    <div className="flex justify-between items-center text-[8px] font-mono text-stone-500 uppercase mb-0.5">
                       <span>Bus Load</span>
                       <span className="text-emerald-400 font-mono font-medium">
                         {Math.round(metrics.bus_load_pct)}%
@@ -859,17 +859,17 @@ export default function DemoPage() {
             </LiquidGlassCard>
 
             {/* Mode share distribution & Challenges (side-by-side or stacked in a scroll area) */}
-            <div className="flex flex-col gap-3 flex-grow min-h-0">
+            <div className="flex flex-col gap-2 flex-grow min-h-0">
               
               {/* Mode share distribution */}
-              <LiquidGlassCard className="p-4 shrink-0" variant="default">
-                <h2 className="text-[11px] font-mono tracking-widest text-stone-400 uppercase mb-3 flex items-center gap-1.5 font-semibold">
-                  <Activity className="w-3.5 h-3.5 text-purple-400" />
+              <LiquidGlassCard className="p-2.5 shrink-0" variant="default">
+                <h2 className="text-[10px] font-mono tracking-widest text-stone-400 uppercase mb-2 flex items-center gap-1 font-semibold">
+                  <Activity className="w-3 h-3 text-purple-400" />
                   Mode Share Distribution
                 </h2>
 
                 {metrics && (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                     {[
                       { label: "DMRC Metro", val: metrics.mode_share[Mode.metro] || 0, color: "bg-blue-400" },
                       { label: "Municipal Bus", val: metrics.mode_share[Mode.bus] || 0, color: "bg-emerald-400" },
@@ -879,9 +879,9 @@ export default function DemoPage() {
                     ]
                       .sort((a, b) => b.val - a.val)
                       .map((item, i) => (
-                        <div key={i} className="text-[11px]">
+                        <div key={i} className="text-[10px]">
                           <div className="flex justify-between font-light mb-0.5">
-                            <span className="text-stone-300 truncate max-w-[80px]">{item.label}</span>
+                            <span className="text-stone-300 truncate max-w-[75px]">{item.label}</span>
                             <span className="font-mono text-stone-400">{Math.round(item.val * 100)}%</span>
                           </div>
                           <div className="w-full h-1 bg-stone-900 rounded-full overflow-hidden">
@@ -894,15 +894,15 @@ export default function DemoPage() {
               </LiquidGlassCard>
 
               {/* Curated Challenges preset box */}
-              <LiquidGlassCard className="p-4 border-purple-500/20 flex-grow flex flex-col min-h-[220px] overflow-hidden" variant="chrome">
-                <h2 className="text-xs font-mono tracking-widest text-purple-400 uppercase mb-3 flex items-center gap-1.5 font-bold shrink-0">
-                  <Zap className="w-4 h-4 text-purple-400" />
+              <LiquidGlassCard className="p-2.5 border-purple-500/20 flex-grow flex flex-col min-h-[200px] overflow-hidden" variant="chrome">
+                <h2 className="text-xs font-mono tracking-widest text-purple-400 uppercase mb-2 flex items-center gap-1 font-bold shrink-0">
+                  <Zap className="w-3.5 h-3.5 text-purple-400" />
                   Policy Challenges
                 </h2>
 
-                <div className="flex flex-col gap-3 flex-grow overflow-hidden">
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    <span className="text-[10px] font-mono text-stone-500 uppercase block font-semibold animate-pulse">Active Scenario Preset</span>
+                <div className="flex flex-col gap-2 flex-grow overflow-hidden">
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <span className="text-[9px] font-mono text-stone-500 uppercase block font-semibold animate-pulse">Active Scenario Preset</span>
                     <select
                       value={activeChallengeId || "sandbox"}
                       onChange={(e) => {
@@ -914,7 +914,7 @@ export default function DemoPage() {
                           if (challenge) loadChallenge(challenge);
                         }
                       }}
-                      className="w-full px-3 py-2 text-xs bg-stone-900 border border-white/10 rounded-xl text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
+                      className="w-full px-2 py-1 text-[11px] bg-stone-900 border border-white/10 rounded-lg text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
                     >
                       <option value="sandbox">Sandbox Mode (Free Play)</option>
                       {CHALLENGES.map(c => (
@@ -923,37 +923,37 @@ export default function DemoPage() {
                     </select>
                   </div>
 
-                  <div className="flex-grow overflow-y-auto flex flex-col gap-3.5 pr-1">
+                  <div className="flex-grow overflow-y-auto flex flex-col gap-2 pr-0.5">
                     {activeChallengeId ? (() => {
                       const challenge = CHALLENGES.find(c => c.id === activeChallengeId);
                       if (!challenge) return null;
                       return (
-                        <div className="bg-stone-900/40 border border-purple-500/20 p-4 rounded-2xl flex-grow flex flex-col justify-between">
+                        <div className="bg-stone-900/40 border border-purple-500/20 p-2.5 rounded-xl flex-grow flex flex-col justify-between">
                           <div>
-                            <h3 className="text-xs font-semibold text-white mb-2 font-mono">
+                            <h3 className="text-[11px] font-semibold text-white mb-1 font-mono">
                               {challenge.name}
                             </h3>
-                            <p className="text-[11px] text-stone-400 font-light leading-relaxed mb-3">
+                            <p className="text-[10px] text-stone-400 font-light leading-relaxed mb-2">
                               {challenge.description}
                             </p>
                           </div>
-                          <div className="pt-3 border-t border-purple-500/20 bg-purple-950/30 -mx-4 -mb-4 p-4 rounded-b-2xl">
-                            <span className="text-[9px] font-mono text-purple-300 uppercase block font-bold mb-1">
+                          <div className="pt-2 border-t border-purple-500/20 bg-purple-950/30 -mx-2.5 -mb-2.5 p-2.5 rounded-b-xl">
+                            <span className="text-[8px] font-mono text-purple-300 uppercase block font-bold mb-0.5">
                               OBJECTIVE:
                             </span>
-                            <span className="text-[11px] font-light text-stone-300 leading-relaxed block mb-3">
+                            <span className="text-[10px] font-light text-stone-300 leading-relaxed block mb-2">
                               {challenge.objective}
                             </span>
 
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                               {challengeSuccess ? (
-                                <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold font-mono">
-                                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                <div className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold font-mono">
+                                  <CheckCircle2 className="w-3 h-3 shrink-0" />
                                   Goal Met! Success.
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1 text-amber-400 text-xs font-bold font-mono animate-pulse">
-                                  <AlertOctagon className="w-3.5 h-3.5 shrink-0" />
+                                <div className="flex items-center gap-1 text-amber-400 text-[10px] font-bold font-mono animate-pulse">
+                                  <AlertOctagon className="w-3 h-3 shrink-0" />
                                   Monitoring criteria...
                                 </div>
                               )}
@@ -962,9 +962,9 @@ export default function DemoPage() {
                         </div>
                       );
                     })() : (
-                      <div className="border border-white/5 bg-stone-900/20 p-4 rounded-2xl flex-grow flex flex-col items-center justify-center text-center p-6">
-                        <Sparkles className="w-8 h-8 text-purple-500/35 mb-2" />
-                        <span className="text-xs text-stone-400 font-light leading-relaxed">
+                      <div className="border border-white/5 bg-stone-900/20 p-3 rounded-xl flex-grow flex flex-col items-center justify-center text-center">
+                        <Sparkles className="w-6 h-6 text-purple-500/35 mb-1.5" />
+                        <span className="text-[10px] text-stone-400 font-light leading-relaxed">
                           Free Play sandbox is active. Select a scenario challenge from the dropdown above to test specific policy criteria.
                         </span>
                       </div>
