@@ -115,22 +115,165 @@ export default function DemoPage() {
   const [commuteHistory, setCommuteHistory] = useState<number[]>([]);
   const [aqiHistory, setAqiHistory] = useState<number[]>([]);
 
-  // Initialize simulator
-  useEffect(() => {
-    const sim = new LocalSimulator(15000);
-    simRef.current = sim;
-    const snap = sim.snapshot();
-    setMetrics(snap.metrics);
-    setGrid(snap.grid);
-    setTimeStr(sim.getFormattedTime());
+  // Backend Integration States
+  const [connectionMode, setConnectionMode] = useState<"local" | "backend" | "connecting">("connecting");
+  const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://urban-policy-simulation.onrender.com";
 
-    // Auto open tutorial on first load
-    setIsTourOpen(true);
+  // Helper to send backend events
+  const injectEvent = async (type: string, payload: any) => {
+    if (connectionMode === "backend" && scenarioId) {
+      try {
+        const cleanUrl = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
+        await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/events`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, payload }),
+        });
+      } catch (err) {
+        console.error("Failed to inject event to backend:", err);
+      }
+    }
+  };
+
+  // Initialize simulator (attempts backend connection, falls back to local)
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let active = true;
+
+    const initSimulation = async () => {
+      // 1. Create fallback local simulator in case backend is offline
+      const localSim = new LocalSimulator(15000);
+      simRef.current = localSim;
+
+      const cleanUrl = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
+
+      try {
+        // Test health endpoint
+        const healthRes = await fetch(`${cleanUrl}/api/v1/health`, { signal: AbortSignal.timeout(3000) });
+        if (!healthRes.ok) throw new Error("Health check failed");
+
+        // Create backend scenario
+        const createRes = await fetch(`${cleanUrl}/api/v1/scenarios`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            config: {
+              name: `strata_sandbox_${Math.random().toString(36).substring(7)}`,
+              city: "delhi",
+              population: 15000,
+              seed: 42,
+              tick_minutes: 5,
+              params: {},
+            },
+          }),
+        });
+
+        if (!createRes.ok) throw new Error("Failed to create scenario");
+        const scData = await createRes.json();
+        const scId = scData.id;
+
+        // Fetch initial snapshot to populate grid
+        const snapRes = await fetch(`${cleanUrl}/api/v1/scenarios/${scId}/snapshot`);
+        if (!snapRes.ok) throw new Error("Failed to fetch initial snapshot");
+        const snapData = await snapRes.json();
+
+        if (!active) return;
+        setScenarioId(scId);
+        setGrid(snapData.grid);
+        setMetrics(snapData.metrics);
+        setConnectionMode("backend");
+
+        // Connect WebSocket
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = cleanUrl.replace(/^https?:\/\//, "");
+        const wsUrl = `${wsProtocol}//${wsHost}/ws/scenarios/${scId}`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "tick" && data.diff) {
+              const diff = data.diff;
+              setTick(diff.tick);
+              setMetrics(diff.metrics);
+              
+              // Merge changed cells into grid
+              setGrid((prevGrid) => {
+                const nextGrid = [...prevGrid];
+                diff.changed_cells.forEach((cell: any) => {
+                  let bestIdx = -1;
+                  let minDist = Infinity;
+                  for (let i = 0; i < nextGrid.length; i++) {
+                    const d = Math.pow(nextGrid[i].lat - cell.lat, 2) + Math.pow(nextGrid[i].lon - cell.lon, 2);
+                    if (d < minDist) {
+                      minDist = d;
+                      bestIdx = i;
+                    }
+                  }
+                  if (bestIdx !== -1 && minDist < 0.0001) {
+                    nextGrid[bestIdx] = cell;
+                  }
+                });
+                return nextGrid;
+              });
+
+              // Format time
+              const minutes = (diff.tick * 5) % (24 * 60);
+              const hour = Math.floor(minutes / 60);
+              const min = Math.floor(minutes % 60);
+              const ampm = hour >= 12 ? "PM" : "AM";
+              const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+              const displayMin = min < 10 ? `0${min}` : min;
+              setTimeStr(`${displayHour}:${displayMin} ${ampm}`);
+
+              setCommuteHistory((prev) => [...prev.slice(-19), diff.metrics.avg_commute_minutes]);
+              setAqiHistory((prev) => [...prev.slice(-19), diff.metrics.aqi_estimate]);
+            } else if (data.type === "status") {
+              setIsPlaying(data.status === "running");
+            }
+          } catch (err) {
+            console.error("Error parsing websocket message:", err);
+          }
+        };
+
+        ws.onclose = () => {
+          console.warn("WebSocket closed. Switching to local fallback.");
+          if (active) setConnectionMode("local");
+        };
+
+        ws.onerror = () => {
+          console.error("WebSocket error. Switching to local fallback.");
+          if (active) setConnectionMode("local");
+        };
+
+      } catch (err) {
+        console.warn("Could not connect to Strata backend. Using local simulation engine.", err);
+        if (active) {
+          const snap = localSim.snapshot();
+          setGrid(snap.grid);
+          setMetrics(snap.metrics);
+          setTimeStr(localSim.getFormattedTime());
+          setConnectionMode("local");
+        }
+      }
+
+      // Auto open guide tour
+      setIsTourOpen(true);
+    };
+
+    initSimulation();
+
+    return () => {
+      active = false;
+      if (ws) ws.close();
+    };
   }, []);
 
-  // Tick step trigger
+  // Local Tick step trigger (only runs if offline)
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || connectionMode !== "local") return;
 
     const interval = setInterval(() => {
       if (simRef.current) {
@@ -140,96 +283,196 @@ export default function DemoPage() {
         setGrid(snap.grid);
         setTimeStr(simRef.current.getFormattedTime());
 
-        // Update history (cap at 20 data points)
         setCommuteHistory((prev) => [...prev.slice(-19), snap.metrics.avg_commute_minutes]);
         setAqiHistory((prev) => [...prev.slice(-19), snap.metrics.aqi_estimate]);
       }
-    }, 450); // fast loop
+    }, 450);
 
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, connectionMode]);
 
-  // Sync state parameters to simulator
+  // Sync state parameters to simulator or backend
   useEffect(() => {
-    const sim = simRef.current;
-    if (!sim) return;
+    if (connectionMode === "local") {
+      const sim = simRef.current;
+      if (!sim) return;
 
-    // Skip syncing parameters if a challenge is overriding setup (until manual changes occur)
-    sim.rain = rainInput / 100;
-    sim.busCapacityPct = busCapInput / 100;
-    sim.fuelPriceDeltaPaise = fuelInput * 100; // Rs to Paise
+      sim.rain = rainInput / 100;
+      sim.busCapacityPct = busCapInput / 100;
+      sim.fuelPriceDeltaPaise = fuelInput * 100;
 
-    const disabled = new Set<string>();
-    if (yellowLineDisabled) disabled.add("Yellow");
-    if (blueLineDisabled) disabled.add("Blue");
-    sim.disabledMetroLines = disabled;
+      const disabled = new Set<string>();
+      if (yellowLineDisabled) disabled.add("Yellow");
+      if (blueLineDisabled) disabled.add("Blue");
+      sim.disabledMetroLines = disabled;
 
-    // Recalculate snap immediately
-    const snap = sim.snapshot();
-    setMetrics(snap.metrics);
-    setGrid(snap.grid);
-  }, [rainInput, busCapInput, fuelInput, yellowLineDisabled, blueLineDisabled]);
+      const snap = sim.snapshot();
+      setMetrics(snap.metrics);
+      setGrid(snap.grid);
+    } else if (connectionMode === "backend") {
+      injectEvent("WEATHER_EVENT", { rain_intensity: rainInput / 100, duration_ticks: 120 });
+      injectEvent("POLICY_EVENT", { bus_capacity_pct: busCapInput / 100, fuel_price_delta_paise: fuelInput * 100 });
+      
+      if (yellowLineDisabled) {
+        injectEvent("INFRASTRUCTURE_EVENT", { disable_metro_line: "yellow" });
+      } else {
+        injectEvent("INFRASTRUCTURE_EVENT", { enable_metro_line: "yellow" });
+      }
+      
+      if (blueLineDisabled) {
+        injectEvent("INFRASTRUCTURE_EVENT", { disable_metro_line: "blue" });
+      } else {
+        injectEvent("INFRASTRUCTURE_EVENT", { enable_metro_line: "blue" });
+      }
+    }
+  }, [rainInput, busCapInput, fuelInput, yellowLineDisabled, blueLineDisabled, connectionMode, scenarioId]);
 
   // Evaluate challenge checks
   useEffect(() => {
     if (!activeChallengeId || !metrics) return;
 
     const challenge = CHALLENGES.find((c) => c.id === activeChallengeId);
-    if (challenge && simRef.current) {
+    if (challenge) {
+      const disabled = new Set<string>();
+      if (yellowLineDisabled) disabled.add("Yellow");
+      if (blueLineDisabled) disabled.add("Blue");
+
       const isSuccess = challenge.checkGoal(
         metrics,
-        simRef.current.disabledMetroLines,
-        simRef.current.busCapacityPct,
-        simRef.current.fuelPriceDeltaPaise
+        disabled,
+        busCapInput / 100,
+        fuelInput * 100
       );
       setChallengeSuccess(isSuccess);
     }
   }, [metrics, activeChallengeId, yellowLineDisabled, blueLineDisabled, rainInput, busCapInput, fuelInput]);
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
+  const togglePlay = async () => {
+    if (connectionMode === "backend" && scenarioId) {
+      try {
+        const cleanUrl = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
+        const endpoint = isPlaying ? "pause" : "resume";
+        const res = await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/${endpoint}`, { method: "POST" });
+        if (res.ok) {
+          setIsPlaying(!isPlaying);
+        }
+      } catch (err) {
+        console.error("Failed to toggle play state on backend:", err);
+      }
+    } else {
+      setIsPlaying(!isPlaying);
+    }
+  };
 
-  const triggerReset = () => {
-    if (simRef.current) {
+  const triggerReset = async () => {
+    if (connectionMode === "backend" && scenarioId) {
+      try {
+        const cleanUrl = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
+        const res = await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/reset`, { method: "POST" });
+        if (res.ok) {
+          const snapRes = await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/snapshot`);
+          if (snapRes.ok) {
+            const snapData = await snapRes.json();
+            setTick(snapData.tick);
+            setMetrics(snapData.metrics);
+            setGrid(snapData.grid);
+            setTimeStr("08:00 AM");
+            setIsPlaying(false);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to reset backend scenario:", err);
+      }
+    } else if (simRef.current) {
       simRef.current.reset();
       const snap = simRef.current.snapshot();
       setTick(snap.tick);
       setMetrics(snap.metrics);
       setGrid(snap.grid);
       setTimeStr(simRef.current.getFormattedTime());
-
-      // Reset controls
-      setRainInput(0);
-      setBusCapInput(100);
-      setFuelInput(0);
-      setYellowLineDisabled(false);
-      setBlueLineDisabled(false);
-      setActiveChallengeId(null);
-      setChallengeSuccess(false);
-      setCommuteHistory([]);
-      setAqiHistory([]);
+      setIsPlaying(false);
     }
+
+    setRainInput(0);
+    setBusCapInput(100);
+    setFuelInput(0);
+    setYellowLineDisabled(false);
+    setBlueLineDisabled(false);
+    setActiveChallengeId(null);
+    setChallengeSuccess(false);
+    setCommuteHistory([]);
+    setAqiHistory([]);
   };
 
-  const loadChallenge = (challenge: Challenge) => {
-    if (simRef.current) {
+  const loadChallenge = async (challenge: Challenge) => {
+    if (connectionMode === "backend" && scenarioId) {
+      try {
+        const cleanUrl = backendUrl.endsWith("/") ? backendUrl.slice(0, -1) : backendUrl;
+        await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/reset`, { method: "POST" });
+
+        if (challenge.id === "monsoon") {
+          await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/events`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "WEATHER_EVENT",
+              payload: { rain_intensity: 0.85, duration_ticks: 120 }
+            })
+          });
+          setRainInput(85);
+          setBusCapInput(100);
+          setFuelInput(0);
+          setYellowLineDisabled(false);
+          setBlueLineDisabled(false);
+        } else if (challenge.id === "decarbonize") {
+          setRainInput(0);
+          setBusCapInput(100);
+          setFuelInput(0);
+          setYellowLineDisabled(false);
+          setBlueLineDisabled(false);
+        } else if (challenge.id === "metro_resilience") {
+          await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/events`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "INFRASTRUCTURE_EVENT",
+              payload: { disable_metro_line: "yellow" }
+            })
+          });
+          setRainInput(0);
+          setBusCapInput(100);
+          setFuelInput(0);
+          setYellowLineDisabled(true);
+          setBlueLineDisabled(false);
+        }
+
+        setActiveChallengeId(challenge.id);
+        setChallengeSuccess(false);
+        setCommuteHistory([]);
+        setAqiHistory([]);
+
+        await fetch(`${cleanUrl}/api/v1/scenarios/${scenarioId}/resume`, { method: "POST" });
+        setIsPlaying(true);
+      } catch (err) {
+        console.error("Failed to load challenge on backend:", err);
+      }
+    } else if (simRef.current) {
       challenge.setup(simRef.current);
       setActiveChallengeId(challenge.id);
       setChallengeSuccess(false);
 
-      // Sync controls back
       setRainInput(simRef.current.rain * 100);
       setBusCapInput(simRef.current.busCapacityPct * 100);
       setFuelInput(simRef.current.fuelPriceDeltaPaise / 100);
       setYellowLineDisabled(simRef.current.disabledMetroLines.has("Yellow"));
       setBlueLineDisabled(simRef.current.disabledMetroLines.has("Blue"));
 
-      // Refresh metrics
       const snap = simRef.current.snapshot();
       setTick(snap.tick);
       setMetrics(snap.metrics);
       setGrid(snap.grid);
       setTimeStr(simRef.current.getFormattedTime());
-      setIsPlaying(true); // start playing for dynamic feedback
+      setIsPlaying(true);
     }
   };
 
@@ -248,8 +491,24 @@ export default function DemoPage() {
               <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest text-purple-400 bg-purple-950/45 border border-purple-500/30">
                 DECISION SANDBOX
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-mono text-stone-400">Offline Simulation Active</span>
+              {connectionMode === "connecting" && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-amber-400/80">Connecting to Strata Engine...</span>
+                </>
+              )}
+              {connectionMode === "backend" && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-400/90">Strata Engine Connected (Production)</span>
+                </>
+              )}
+              {connectionMode === "local" && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-stone-400">Strata Engine Offline (Local Fallback Active)</span>
+                </>
+              )}
             </div>
             <h1 className="text-3xl md:text-4xl font-light tracking-tight mt-1 text-white">
               STRATA <span className="text-stone-500 font-extralight">| Command Center</span>
