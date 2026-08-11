@@ -11,13 +11,12 @@ export default function CustomCursor() {
   useGSAP(() => {
     if (!cursorRef.current || !dotRef.current) return;
 
-    // quickTo is optimized for performance in high-frequency events like mousemove
-    // 0.15s lag gives a lightweight, responsive feel
-    const xToCursor = gsap.quickTo(cursorRef.current, "x", { duration: 0.15, ease: "power3.out" });
-    const yToCursor = gsap.quickTo(cursorRef.current, "y", { duration: 0.15, ease: "power3.out" });
+    // Reduced duration for a highly responsive, snappy tracking feel
+    const xToCursor = gsap.quickTo(cursorRef.current, "x", { duration: 0.06, ease: "power2.out" });
+    const yToCursor = gsap.quickTo(cursorRef.current, "y", { duration: 0.06, ease: "power2.out" });
     
-    const xToDot = gsap.quickTo(dotRef.current, "x", { duration: 0.04, ease: "power3.out" });
-    const yToDot = gsap.quickTo(dotRef.current, "y", { duration: 0.04, ease: "power3.out" });
+    const xToDot = gsap.quickTo(dotRef.current, "x", { duration: 0.01, ease: "power2.out" });
+    const yToDot = gsap.quickTo(dotRef.current, "y", { duration: 0.01, ease: "power2.out" });
 
     const onMouseMove = (e: MouseEvent) => {
       xToCursor(e.clientX);
