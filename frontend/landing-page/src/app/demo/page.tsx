@@ -118,6 +118,7 @@ export default function DemoPage() {
   // Backend Integration States
   const [connectionMode, setConnectionMode] = useState<"local" | "backend" | "connecting">("connecting");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const [selectedControlCategory, setSelectedControlCategory] = useState<"all" | "weather" | "transit" | "taxation">("all");
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://urban-policy-simulation.onrender.com";
 
   // Helper to send backend events
@@ -575,107 +576,133 @@ export default function DemoPage() {
             </LiquidGlassCard>
 
             {/* Environmental & Interventions */}
-            <LiquidGlassCard className="p-4 flex-grow flex flex-col gap-4 overflow-y-auto" variant="default">
-              <div>
-                <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
-                  <CloudRain className="w-4 h-4 text-sky-400" />
-                  Weather Events
-                </h2>
-                
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-light text-stone-400">Monsoon Rain Intensity</span>
-                      <span className="font-mono text-purple-400 font-semibold">{rainInput}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={rainInput}
-                      onChange={(e) => setRainInput(Number(e.target.value))}
-                      className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
-                    />
-                    <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
-                      <span>Dry</span>
-                      <span>Downpour</span>
-                    </div>
-                  </div>
-                </div>
+            <LiquidGlassCard className="p-4 flex-grow flex flex-col gap-4 overflow-hidden" variant="default">
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <span className="text-[10px] font-mono text-stone-500 uppercase block font-semibold">Select Control Category</span>
+                <select
+                  value={selectedControlCategory}
+                  onChange={(e) => setSelectedControlCategory(e.target.value as any)}
+                  className="w-full px-3 py-2 text-xs bg-stone-900 border border-white/10 rounded-xl text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
+                >
+                  <option value="all">All Controls</option>
+                  <option value="weather">Weather Events</option>
+                  <option value="transit">Transit & Scheduling</option>
+                  <option value="taxation">Taxation & Levies</option>
+                </select>
               </div>
 
-              <div className="border-t border-white/5 pt-3">
-                <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-purple-400" />
-                  Policy Interventions
-                </h2>
-
-                <div className="space-y-4">
-                  {/* Bus capacity boost */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-light text-stone-400">Bus Capacity Level</span>
-                      <span className="font-mono text-purple-400 font-semibold">{busCapInput}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="50"
-                      max="150"
-                      value={busCapInput}
-                      onChange={(e) => setBusCapInput(Number(e.target.value))}
-                      className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
-                    />
-                    <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
-                      <span>50% Choked</span>
-                      <span>150% Boosted</span>
-                    </div>
-                  </div>
-
-                  {/* Fuel tax */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-light text-stone-400">Carbon Fuel Levy</span>
-                      <span className="font-mono text-purple-400 font-semibold">₹{fuelInput}/L</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="200"
-                      value={fuelInput}
-                      onChange={(e) => setFuelInput(Number(e.target.value))}
-                      className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
-                    />
-                    <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
-                      <span>No Levy</span>
-                      <span>₹200/L Tax</span>
-                    </div>
-                  </div>
-
-                  {/* Metro shutdown toggles */}
-                  <div className="pt-2 border-t border-white/5 space-y-2">
-                    <span className="text-[10px] font-mono text-stone-500 uppercase block">Transit Line Health</span>
+              <div className="flex-grow flex flex-col gap-4 overflow-y-auto pr-0.5">
+                {(selectedControlCategory === "all" || selectedControlCategory === "weather") && (
+                  <div className="border-t border-white/5 pt-3 first:border-0 first:pt-0">
+                    <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
+                      <CloudRain className="w-4 h-4 text-sky-400" />
+                      Weather Events
+                    </h2>
                     
-                    <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
-                      <span>Yellow Line Outage</span>
-                      <input
-                        type="checkbox"
-                        checked={yellowLineDisabled}
-                        onChange={(e) => setYellowLineDisabled(e.target.checked)}
-                        className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
-                      />
-                    </label>
-
-                    <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
-                      <span>Blue Line Outage</span>
-                      <input
-                        type="checkbox"
-                        checked={blueLineDisabled}
-                        onChange={(e) => setBlueLineDisabled(e.target.checked)}
-                        className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
-                      />
-                    </label>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-light text-stone-400">Monsoon Rain Intensity</span>
+                          <span className="font-mono text-purple-400 font-semibold">{rainInput}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={rainInput}
+                          onChange={(e) => setRainInput(Number(e.target.value))}
+                          className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                        />
+                        <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                          <span>Dry</span>
+                          <span>Downpour</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {(selectedControlCategory === "all" || selectedControlCategory === "transit" || selectedControlCategory === "taxation") && (
+                  <div className="border-t border-white/5 pt-3 first:border-0 first:pt-0">
+                    <h2 className="text-xs font-bold font-mono tracking-wider text-stone-300 uppercase mb-3 flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-purple-400" />
+                      Policy Interventions
+                    </h2>
+
+                    <div className="space-y-4">
+                      {/* Bus capacity boost */}
+                      {(selectedControlCategory === "all" || selectedControlCategory === "transit") && (
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-light text-stone-400">Bus Capacity Level</span>
+                            <span className="font-mono text-purple-400 font-semibold">{busCapInput}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="50"
+                            max="150"
+                            value={busCapInput}
+                            onChange={(e) => setBusCapInput(Number(e.target.value))}
+                            className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                            <span>50% Choked</span>
+                            <span>150% Boosted</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fuel tax */}
+                      {(selectedControlCategory === "all" || selectedControlCategory === "taxation") && (
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-light text-stone-400">Carbon Fuel Levy</span>
+                            <span className="font-mono text-purple-400 font-semibold">₹{fuelInput}/L</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="200"
+                            value={fuelInput}
+                            onChange={(e) => setFuelInput(Number(e.target.value))}
+                            className="w-full h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-stone-500 mt-0.5 font-mono">
+                            <span>No Levy</span>
+                            <span>₹200/L Tax</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Metro shutdown toggles */}
+                      {(selectedControlCategory === "all" || selectedControlCategory === "transit") && (
+                        <div className="pt-2 border-t border-white/5 space-y-2">
+                          <span className="text-[10px] font-mono text-stone-500 uppercase block">Transit Line Health</span>
+                          
+                          <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
+                            <span>Yellow Line Outage</span>
+                            <input
+                              type="checkbox"
+                              checked={yellowLineDisabled}
+                              onChange={(e) => setYellowLineDisabled(e.target.checked)}
+                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
+                            />
+                          </label>
+
+                          <label className="flex items-center justify-between text-xs font-light text-stone-400 cursor-pointer p-1 rounded-lg hover:bg-white/5 transition-colors">
+                            <span>Blue Line Outage</span>
+                            <input
+                              type="checkbox"
+                              checked={blueLineDisabled}
+                              onChange={(e) => setBlueLineDisabled(e.target.checked)}
+                              className="rounded border-white/10 text-purple-500 focus:ring-0 focus:ring-offset-0 bg-stone-900 w-3.5 h-3.5 cursor-pointer accent-purple-500"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </LiquidGlassCard>
           </section>
@@ -873,31 +900,48 @@ export default function DemoPage() {
                   Policy Challenges
                 </h2>
 
-                <div className="flex-grow overflow-y-auto flex flex-col gap-2.5 pr-1">
-                  {CHALLENGES.map((challenge) => {
-                    const isActive = activeChallengeId === challenge.id;
-                    return (
-                      <button
-                        key={challenge.id}
-                        onClick={() => loadChallenge(challenge)}
-                        className={`text-left p-3 rounded-xl border transition-all cursor-pointer shrink-0 ${
-                          isActive
-                            ? "bg-purple-950/40 border-purple-500/40"
-                            : "bg-stone-900/40 border-white/5 hover:bg-stone-900/60 hover:border-white/10"
-                        }`}
-                      >
-                        <h3 className="text-xs font-semibold text-white mb-0.5 font-mono">
-                          {challenge.name}
-                        </h3>
-                        <p className="text-[10px] text-stone-400 font-light leading-relaxed mb-1 truncate">
-                          {challenge.description}
-                        </p>
-                        {isActive && (
-                          <div className="mt-2 pt-2 border-t border-purple-500/20 bg-purple-950/30 -mx-3 -mb-3 p-3 rounded-b-xl">
-                            <span className="text-[9px] font-mono text-purple-300 uppercase block font-bold mb-0.5">
+                <div className="flex flex-col gap-3 flex-grow overflow-hidden">
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <span className="text-[10px] font-mono text-stone-500 uppercase block font-semibold animate-pulse">Active Scenario Preset</span>
+                    <select
+                      value={activeChallengeId || "sandbox"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "sandbox") {
+                          triggerReset();
+                        } else {
+                          const challenge = CHALLENGES.find(c => c.id === val);
+                          if (challenge) loadChallenge(challenge);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-stone-900 border border-white/10 rounded-xl text-stone-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
+                    >
+                      <option value="sandbox">Sandbox Mode (Free Play)</option>
+                      {CHALLENGES.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex-grow overflow-y-auto flex flex-col gap-3.5 pr-1">
+                    {activeChallengeId ? (() => {
+                      const challenge = CHALLENGES.find(c => c.id === activeChallengeId);
+                      if (!challenge) return null;
+                      return (
+                        <div className="bg-stone-900/40 border border-purple-500/20 p-4 rounded-2xl flex-grow flex flex-col justify-between">
+                          <div>
+                            <h3 className="text-xs font-semibold text-white mb-2 font-mono">
+                              {challenge.name}
+                            </h3>
+                            <p className="text-[11px] text-stone-400 font-light leading-relaxed mb-3">
+                              {challenge.description}
+                            </p>
+                          </div>
+                          <div className="pt-3 border-t border-purple-500/20 bg-purple-950/30 -mx-4 -mb-4 p-4 rounded-b-2xl">
+                            <span className="text-[9px] font-mono text-purple-300 uppercase block font-bold mb-1">
                               OBJECTIVE:
                             </span>
-                            <span className="text-[10px] font-light text-stone-300 leading-relaxed block mb-2">
+                            <span className="text-[11px] font-light text-stone-300 leading-relaxed block mb-3">
                               {challenge.objective}
                             </span>
 
@@ -915,10 +959,17 @@ export default function DemoPage() {
                               )}
                             </div>
                           </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                        </div>
+                      );
+                    })() : (
+                      <div className="border border-white/5 bg-stone-900/20 p-4 rounded-2xl flex-grow flex flex-col items-center justify-center text-center p-6">
+                        <Sparkles className="w-8 h-8 text-purple-500/35 mb-2" />
+                        <span className="text-xs text-stone-400 font-light leading-relaxed">
+                          Free Play sandbox is active. Select a scenario challenge from the dropdown above to test specific policy criteria.
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </LiquidGlassCard>
             </div>
