@@ -417,8 +417,19 @@ export default function MapSimulation({
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, rainIntensity, roadCongestion, timeOfDay]);
 
+  // Trigger map resize on window resize to ensure WebGL context fits correctly
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
-    <div className="relative w-full aspect-square md:max-w-2xl bg-[#0c0a09] rounded-3xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md">
+    <div className="relative w-full flex-1 min-h-[300px] bg-[#0c0a09] rounded-3xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-md">
       {/* Mapbox GL container */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
       {/* Synchronized canvas for particle rendering */}
