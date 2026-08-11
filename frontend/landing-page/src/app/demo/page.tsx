@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LocalSimulator, Mode, GridCell, AggregateMetrics } from "@/lib/localSimulator";
-import { SimulationCanvas } from "@/components/simulation/SimulationCanvas";
 import { InsightsPanel } from "@/components/simulation/InsightsPanel";
 import { TutorialOverlay } from "@/components/simulation/TutorialOverlay";
 import { LiquidGlassCard } from "@/components/liquid-glass/LiquidGlassCard";
@@ -25,6 +24,11 @@ import dynamic from "next/dynamic";
 
 const ParticleBackground = dynamic(
   () => import("@/components/ui/ParticleBackground").then(mod => mod.ParticleBackground),
+  { ssr: false }
+);
+
+const MapSimulation = dynamic(
+  () => import("@/components/simulation/MapSimulation"),
   { ssr: false }
 );
 
@@ -425,7 +429,7 @@ export default function DemoPage() {
           <section className="lg:col-span-5 flex flex-col gap-6 items-center">
             
             {/* Visual network simulator */}
-            <SimulationCanvas
+            <MapSimulation
               grid={grid}
               rainIntensity={rainInput / 100}
               roadCongestion={metrics?.road_congestion_index || 0}
