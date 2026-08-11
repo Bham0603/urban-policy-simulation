@@ -40,6 +40,51 @@ export default function MapSimulation({
   const centerLon = 77.2197;
   const maxSpan = 0.018; // Degrees span for radial nodes
 
+  const yellowLineCoords = [
+    [28.6580, 77.2160],
+    [28.6431, 77.2214],
+    [28.6328, 77.2197],
+    [28.6231, 77.2150],
+    [28.6080, 77.2090],
+  ];
+
+  const blueLineCoords = [
+    [28.6360, 77.1950],
+    [28.6395, 77.2085],
+    [28.6328, 77.2197],
+    [28.6300, 77.2295],
+    [28.6260, 77.2480],
+  ];
+
+  const radialEndpoints = [
+    [28.6250, 77.2155], // Parliament Street
+    [28.6235, 77.2191], // Janpath
+    [28.6250, 77.2260], // Kasturba Gandhi Marg
+    [28.6295, 77.2315], // Barakhamba Road
+    [28.6365, 77.2055], // Panchkuian Road
+    [28.6265, 77.2105], // Baba Kharak Singh Marg
+    [28.6410, 77.2245], // Minto Road
+    [28.6415, 77.2175], // Chelmsford Road
+  ];
+
+  const concentricRadii = [
+    { lat: 0.0016, lon: 0.0018 }, // Inner Circle
+    { lat: 0.0028, lon: 0.0031 }, // Middle Circle
+    { lat: 0.0038, lon: 0.0042 }, // Outer Circle
+  ];
+
+  const interpolatePath = (coords: number[][], progress: number) => {
+    const totalSegments = coords.length - 1;
+    const segment = Math.min(totalSegments - 1, Math.floor(progress * totalSegments));
+    const segmentProgress = (progress * totalSegments) - segment;
+    const p1 = coords[segment];
+    const p2 = coords[segment + 1];
+    return {
+      lat: p1[0] + (p2[0] - p1[0]) * segmentProgress,
+      lon: p1[1] + (p2[1] - p1[1]) * segmentProgress,
+    };
+  };
+
   // DMRC Metro Stations Coords
   const stations = [
     { coords: [28.6328, 77.2197], name: "Rajiv Chowk" },
@@ -56,7 +101,7 @@ export default function MapSimulation({
     // 1. Create Leaflet Map instance
     const map = L.map(mapContainerRef.current, {
       center: [centerLat, centerLon],
-      zoom: 14,
+      zoom: 15.0, // Zoomed in to focus on Connaught Place rings
       zoomControl: false,
       attributionControl: false,
       maxBounds: [
@@ -218,30 +263,23 @@ export default function MapSimulation({
       // 2. Update particle positions on map coordinates & project to pixels
       particlesRef.current.forEach((p) => {
         if (p.pathType === "metro") {
-          // Travel back/forth along Yellow or Blue line track
+          // Interpolate exactly along Yellow or Blue Line coordinates
           const isYellow = p.lineIndex % 2 === 0;
-          const axisOffset = -maxSpan * 0.8 + maxSpan * 1.6 * p.progress;
-
-          if (isYellow) {
-            p.lat = centerLat + axisOffset;
-            p.lon = centerLon + axisOffset * 0.1; // subtle curve
-          } else {
-            p.lat = centerLat + axisOffset * 0.15;
-            p.lon = centerLon + axisOffset;
-          }
+          const route = isYellow ? yellowLineCoords : blueLineCoords;
+          const pt = interpolatePath(route, p.progress);
+          p.lat = pt.lat;
+          p.lon = pt.lon;
         } else if (p.pathType === "radial") {
-          // Radial commuting along roads
-          const angle = (p.lineIndex * Math.PI * 2) / 8;
-          const r = maxSpan * p.progress;
-          p.lat = centerLat + Math.cos(angle) * r;
-          p.lon = centerLon + Math.sin(angle) * r;
+          // Slide exactly along Connaught Place's geolocated radial roads
+          const endpoint = radialEndpoints[p.lineIndex % radialEndpoints.length];
+          p.lat = centerLat + (endpoint[0] - centerLat) * p.progress;
+          p.lon = centerLon + (endpoint[1] - centerLon) * p.progress;
         } else {
-          // Circular concentric route around CP
-          const radii = [maxSpan * 0.35, maxSpan * 0.7, maxSpan * 1.15];
-          const radius = radii[p.lineIndex % radii.length];
+          // Orbit exactly along Connaught Place's circular concentric roads
+          const ring = concentricRadii[p.lineIndex % concentricRadii.length];
           const angle = p.progress * Math.PI * 2;
-          p.lat = centerLat + Math.cos(angle) * radius;
-          p.lon = centerLon + Math.sin(angle) * radius * 1.1; // skew to simulate oval road
+          p.lat = centerLat + Math.cos(angle) * ring.lat;
+          p.lon = centerLon + Math.sin(angle) * ring.lon;
         }
 
         // Map geocoordinates to screen pixels
