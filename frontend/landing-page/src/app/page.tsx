@@ -9,7 +9,7 @@ import { TextEffect } from "@/components/motion-primitives/text-effect";
 import dynamic from "next/dynamic";
 import { LiquidGlassDock } from "@/components/liquid-glass/LiquidGlassDock";
 import { LiquidGlassFluidCard } from "@/components/liquid-glass/LiquidGlassFluidCard";
-import { Activity, Map, Cpu } from "lucide-react";
+import { Activity, Map, Cpu, Sparkles } from "lucide-react";
 
 const ParticleBackground = dynamic(
   () => import("@/components/ui/ParticleBackground").then(mod => mod.ParticleBackground),
@@ -63,6 +63,12 @@ export default function LandingPage() {
             icon: <Activity className="w-5 h-5 text-white" />,
             label: 'Analytics',
             onClick: () => document.getElementById('analytics')?.scrollIntoView({ behavior: 'smooth' })
+          },
+          {
+            id: 'sandbox',
+            icon: <Sparkles className="w-5 h-5 text-purple-400" />,
+            label: 'Sandbox Demo',
+            onClick: () => window.location.href = '/demo'
           }
         ]}
       />
@@ -85,8 +91,12 @@ export default function LandingPage() {
             </p>
 
             <div className="fade-up mt-8 pointer-events-auto">
-              <LiquidGlassButton size="lg" className="rounded-full px-8 py-6 text-sm tracking-widest border border-white/20">
-                ENTER THE FIELD <span className="ml-4 opacity-50">↓</span>
+              <LiquidGlassButton 
+                onClick={() => window.location.href = '/demo'}
+                size="lg" 
+                className="rounded-full px-8 py-6 text-sm tracking-widest border border-white/20"
+              >
+                ENTER THE SANDBOX <span className="ml-4 opacity-50">→</span>
               </LiquidGlassButton>
             </div>
           </div>
@@ -162,32 +172,13 @@ export default function LandingPage() {
                 desc: "Run A/B tests on municipal policies and observe long-term outcomes.",
               }
             ].map((item, i) => (
-              <InView
-                key={i}
-                variants={{
-                  hidden: { opacity: 0, y: 30 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                transition={{ duration: 0.8, delay: i * 0.2, ease: "easeOut" }}
-                viewOptions={{ once: true }}
-              >
-                <div className="relative h-[400px] w-full group rounded-3xl">
-                  {/* The Glow Aura sitting behind the card */}
-                  <GlowEffect 
-                    colors={['#0894FF', '#C959DD', '#FF2E54', '#FF9004']} 
-                    mode="fade" 
-                    blur="stronger"
-                    scale={0.96}
-                    className="opacity-0 group-hover:opacity-70 transition-opacity duration-700"
-                  />
-                  {/* The Solid Black Card */}
-                  <div className="relative z-10 flex h-full flex-col bg-black/80 backdrop-blur-md border border-white/10 p-10 rounded-[inherit] hover:border-white/20 transition-colors duration-500">
-                    {item.icon}
-                    <h3 className="text-lg font-light mb-4 text-white tracking-wide">{item.title}</h3>
-                    <p className="text-sm text-white/40 leading-relaxed font-light">{item.desc}</p>
-                  </div>
+              <LiquidGlassFluidCard key={i} variant="ios26" className="h-[400px] w-full">
+                <div className="flex h-full flex-col">
+                  {item.icon}
+                  <h3 className="text-xl font-light mb-4 text-white tracking-wide">{item.title}</h3>
+                  <p className="text-white/70 leading-relaxed font-light">{item.desc}</p>
                 </div>
-              </InView>
+              </LiquidGlassFluidCard>
             ))}
           </div>
         </section>
