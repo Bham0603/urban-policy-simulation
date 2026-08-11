@@ -38,7 +38,7 @@ export function InView({
   const ref = useRef(null);
   const isInView = useInView(ref, viewOptions);
 
-  const [isViewed, setIsViewed] = useState(false);
+  const [isViewed, setIsViewed] = useState(false)
 
   const MotionComponent = motion[as as keyof typeof motion] as any;
 

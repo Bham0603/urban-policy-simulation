@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "../../utils/cn";
-import { motion } from "framer-motion";
+import { motion, useScroll, useVelocity, useSpring, useTransform } from "framer-motion";
 import { useState, type ReactNode, type MouseEvent } from "react";
 import { GlassTopHighlight } from "./GlassTopHighlight";
 import {
@@ -29,6 +29,18 @@ export function LiquidGlassFluidCard({
   const glowTransition = useLiquidTransition();
   const [glow, setGlow] = useState({ x: 50, y: 50, active: false });
 
+  // Jelly scroll physics
+  const { scrollY } = useScroll();
+  const scrollVelocity = useVelocity(scrollY);
+  const smoothVelocity = useSpring(scrollVelocity, {
+    damping: 15,
+    stiffness: 150,
+    mass: 0.8
+  });
+
+  const scaleX = useTransform(smoothVelocity, [-2000, 0, 2000], [0.92, 1, 0.92]);
+  const scaleY = useTransform(smoothVelocity, [-2000, 0, 2000], [1.08, 1, 1.08]);
+
   const handleMove = (e: MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setGlow({
@@ -52,8 +64,10 @@ export function LiquidGlassFluidCard({
       onMouseMove={handleMove}
       onMouseLeave={() => setGlow((g) => ({ ...g, active: false }))}
       onClick={onClick}
-      whileHover={{ y: hoverLift }}
+      whileHover={{ y: hoverLift, scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 300, damping: 12 }}
       whileTap={onClick ? { scale: tapScale } : undefined}
+      style={{ scaleX, scaleY }}
       className={cn(
         "relative overflow-hidden rounded-3xl isolate",
         isIos26 ? "glass-blur-xl glass-surface-strong glass-border" : "glass-blur-lg glass-surface glass-border",
