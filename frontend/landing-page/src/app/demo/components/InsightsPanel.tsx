@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AggregateMetrics } from "@/lib/localSimulator";
+import { AggregateMetrics } from "../lib/localSimulator";
 import { Sparkles, ArrowRight, ShieldAlert, BadgeAlert } from "lucide-react";
 import { motion } from "framer-motion";
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
-import { GridCell } from "@/lib/localSimulator";
+import { GridCell } from "../lib/localSimulator";
 
 interface MapSimulationProps {
   grid: GridCell[];

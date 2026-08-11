@@ -2,8 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowRight, ArrowLeft, Play, Sparkles } from "lucide-react";
-import { LiquidGlassButton } from "../liquid-glass/LiquidGlassButton";
-import { LiquidGlassCard } from "../liquid-glass/LiquidGlassCard";
+import { LiquidGlassButton } from "@/components/liquid-glass/LiquidGlassButton";
+import { LiquidGlassCard } from "@/components/liquid-glass/LiquidGlassCard";
 
 interface TutorialOverlayProps {
   isOpen: boolean;

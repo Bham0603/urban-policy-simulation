@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LocalSimulator, Mode, GridCell, AggregateMetrics } from "@/lib/localSimulator";
-import { InsightsPanel } from "@/components/simulation/InsightsPanel";
-import { TutorialOverlay } from "@/components/simulation/TutorialOverlay";
+import { LocalSimulator, Mode, GridCell, AggregateMetrics } from "./lib/localSimulator";
+import { InsightsPanel } from "./components/InsightsPanel";
+import { TutorialOverlay } from "./components/TutorialOverlay";
 import { LiquidGlassCard } from "@/components/liquid-glass/LiquidGlassCard";
 import { LiquidGlassButton } from "@/components/liquid-glass/LiquidGlassButton";
 import {
@@ -28,7 +28,7 @@ const ParticleBackground = dynamic(
 );
 
 const MapSimulation = dynamic(
-  () => import("@/components/simulation/MapSimulation"),
+  () => import("./components/MapSimulation"),
   { ssr: false }
 );
 
