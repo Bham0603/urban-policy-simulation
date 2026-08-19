@@ -77,7 +77,7 @@ export default function LandingPage() {
       <div className="relative z-10 w-full">
         
         {/* Hero Section */}
-        <section id="engine" className="min-h-screen flex items-center pl-12 pr-12 md:pl-32 lg:pl-48 max-w-[1600px]">
+        <section id="engine" className="min-h-screen flex items-center px-6 md:px-12 lg:px-24 mx-auto max-w-[1600px] w-full">
           <div className="flex flex-col items-start gap-8">
             
             <h1 className="text-6xl md:text-8xl lg:text-[120px] font-light leading-[0.85] tracking-tighter">
@@ -103,7 +103,7 @@ export default function LandingPage() {
         </section>
 
         {/* Predictive Infrastructure Section */}
-        <section id="infrastructure" className="min-h-screen flex items-center pl-12 pr-12 md:pl-32 lg:pl-48 max-w-[1600px] pt-32 pb-32">
+        <section id="infrastructure" className="min-h-screen flex items-center px-6 md:px-12 lg:px-24 mx-auto max-w-[1600px] pt-32 pb-32 w-full">
           <div className="flex flex-col items-start gap-16 w-full">
             <div className="text-[10px] font-mono tracking-[0.2em] text-white/50 uppercase">
               //01 PREDICTIVE INFRASTRUCTURE
@@ -146,15 +146,15 @@ export default function LandingPage() {
         </section>
 
         {/* Spatial Canvas / Cards Section */}
-        <section id="analytics" className="min-h-[150vh] flex flex-col items-start justify-center px-4 md:pl-32 lg:pl-48 max-w-[1600px] py-32 pointer-events-auto">
-          <div className="w-full text-left space-y-4 mb-24 pl-8">
+        <section id="analytics" className="min-h-[150vh] flex flex-col items-start justify-center px-6 md:px-12 lg:px-24 mx-auto max-w-[1600px] py-32 pointer-events-auto w-full">
+          <div className="w-full text-left space-y-4 mb-24">
             <div className="text-[10px] font-mono tracking-[0.2em] text-white/50 uppercase">
               //02 CROSS-DISCIPLINARY ANALYTICS
             </div>
             <h2 className="text-5xl font-light tracking-tighter">Unified Data Streams.</h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
             {[
               {
                 icon: <ActivitySquare className="w-8 h-8 text-white/80 mb-8 stroke-[1px]" />,
@@ -172,7 +172,7 @@ export default function LandingPage() {
                 desc: "Run A/B tests on municipal policies and observe long-term outcomes.",
               }
             ].map((item, i) => (
-              <LiquidGlassFluidCard key={i} variant="ios26" className="h-[400px] w-full">
+              <LiquidGlassFluidCard key={i} variant="ios26" className="h-full w-full">
                 <div className="flex h-full flex-col">
                   {item.icon}
                   <h3 className="text-xl font-light mb-4 text-white tracking-wide">{item.title}</h3>

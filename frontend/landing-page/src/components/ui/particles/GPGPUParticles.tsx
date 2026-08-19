@@ -8,7 +8,7 @@ import { SimulationMaterial } from './SimulationMaterial';
 import { RenderMaterial } from './RenderMaterial';
 
 export function GPGPUParticles() {
-  const size = 256; // 256 * 256 = 65,536 particles
+  const size = 128; // 128 * 128 = 16,384 particles
 
   // Setup FBO
   const renderTarget = useFBO(size, size, {
