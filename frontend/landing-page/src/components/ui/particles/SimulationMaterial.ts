@@ -166,8 +166,8 @@ export class SimulationMaterial extends THREE.ShaderMaterial {
       uniforms: {
         positions: { value: null },
         uTime: { value: 0 },
-        uSpeed: { value: 0.01 },
-        uCurlFreq: { value: 0.15 }
+        uSpeed: { value: 0.015 },
+        uCurlFreq: { value: 0.2 }
       }
     });
   }
