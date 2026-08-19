@@ -11,12 +11,16 @@ export default function CustomCursor() {
   useGSAP(() => {
     if (!cursorRef.current || !dotRef.current) return;
 
-    // quickTo is optimized for performance in high-frequency events like mousemove
-    const xToCursor = gsap.quickTo(cursorRef.current, "x", { duration: 0.2, ease: "power3" });
-    const yToCursor = gsap.quickTo(cursorRef.current, "y", { duration: 0.2, ease: "power3" });
+    // Fix centering with GSAP to avoid Tailwind transform conflicts
+    gsap.set(cursorRef.current, { xPercent: -50, yPercent: -50 });
+    gsap.set(dotRef.current, { xPercent: -50, yPercent: -50 });
+
+    // Reduce duration for snappier, less laggy response
+    const xToCursor = gsap.quickTo(cursorRef.current, "x", { duration: 0.1, ease: "power3.out" });
+    const yToCursor = gsap.quickTo(cursorRef.current, "y", { duration: 0.1, ease: "power3.out" });
     
-    const xToDot = gsap.quickTo(dotRef.current, "x", { duration: 0.05, ease: "power3" });
-    const yToDot = gsap.quickTo(dotRef.current, "y", { duration: 0.05, ease: "power3" });
+    const xToDot = gsap.quickTo(dotRef.current, "x", { duration: 0.02, ease: "power3.out" });
+    const yToDot = gsap.quickTo(dotRef.current, "y", { duration: 0.02, ease: "power3.out" });
 
     const onMouseMove = (e: MouseEvent) => {
       xToCursor(e.clientX);
@@ -33,12 +37,12 @@ export default function CustomCursor() {
         target.closest("a") || 
         target.closest("button")
       ) {
-        gsap.to(cursorRef.current, { scale: 1.5, opacity: 0.5, duration: 0.3, ease: "power2.out" });
+        gsap.to(cursorRef.current, { scale: 1.5, opacity: 0.5, duration: 0.2, ease: "power2.out" });
       }
     };
 
     const onMouseLeave = () => {
-      gsap.to(cursorRef.current, { scale: 1, opacity: 1, duration: 0.3, ease: "power2.out" });
+      gsap.to(cursorRef.current, { scale: 1, opacity: 1, duration: 0.2, ease: "power2.out" });
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -56,11 +60,13 @@ export default function CustomCursor() {
     <>
       <div 
         ref={cursorRef} 
-        className="fixed top-0 left-0 w-8 h-8 border border-white rounded-full pointer-events-none z-[9999] -translate-x-1/2 -translate-y-1/2 hidden sm:block"
+        style={{ willChange: "transform" }}
+        className="fixed top-0 left-0 w-8 h-8 border border-white rounded-full pointer-events-none z-[9999] hidden sm:block"
       />
       <div 
         ref={dotRef} 
-        className="fixed top-0 left-0 w-2 h-2 bg-white rounded-full pointer-events-none z-[9999] -translate-x-1/2 -translate-y-1/2 hidden sm:block shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+        style={{ willChange: "transform" }}
+        className="fixed top-0 left-0 w-2 h-2 bg-white rounded-full pointer-events-none z-[9999] hidden sm:block shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
       />
     </>
   );
