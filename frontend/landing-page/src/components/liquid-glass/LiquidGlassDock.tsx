@@ -54,11 +54,11 @@ export function LiquidGlassDock({
             whileTap={{ scale: 0.9 }}
             onClick={item.onClick}
             className={cn(
-              "relative flex items-center justify-center rounded-xl transition-colors",
+              "relative flex items-center justify-center rounded-xl transition-all duration-300 group",
               isVertical ? "w-11 h-11" : "w-12 h-12",
               item.active
-                ? "bg-[var(--lg-border)]"
-                : "hover:bg-[var(--lg-border-subtle)]"
+                ? "bg-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                : "hover:bg-white/10 hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]"
             )}
           >
             <span
@@ -73,13 +73,13 @@ export function LiquidGlassDock({
             <div
               className={cn(
                 "absolute opacity-0 group-hover:opacity-100 pointer-events-none",
-                "px-2 py-1 rounded-lg glass-blur-sm glass-surface glass-border",
-                "text-[10px] font-medium text-[var(--lg-text-secondary)] whitespace-nowrap",
-                "transition-opacity",
-                position === "bottom" && "bottom-full mb-2",
-                position === "top" && "top-full mt-2",
-                position === "left" && "left-full ml-2",
-                position === "right" && "right-full mr-2"
+                "px-3 py-1.5 rounded-lg glass-blur-sm glass-surface glass-border",
+                "text-sm font-medium text-[var(--lg-text-secondary)] whitespace-nowrap",
+                "transition-opacity duration-200",
+                position === "bottom" && "bottom-full mb-3",
+                position === "top" && "top-full mt-3",
+                position === "left" && "left-full ml-3",
+                position === "right" && "right-full mr-3"
               )}
             >
               {item.label}
