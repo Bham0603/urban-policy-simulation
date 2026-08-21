@@ -29,6 +29,8 @@ class Mode(StrEnum):
     metro = "metro"
     auto = "auto"
     car = "car"
+    bike_share = "bike_share"
+    e_rickshaw = "e_rickshaw"
 
 
 class ScenarioStatus(StrEnum):
@@ -56,8 +58,22 @@ class ScenarioConfig(BaseModel):
     population: int = Field(default=5_000, ge=1, le=200_000)
     seed: int = Field(default=42, description="Single RNG seed for the whole run.")
     tick_minutes: int = Field(default=5, description="Simulated minutes per tick.")
-    # Free-form initial policy/environment knobs (validated by the sim layer, not here).
-    params: dict[str, float] = Field(default_factory=dict)
+    # Widened to match Event.payload so bool toggles (WFH) and named knobs (metro line) fit.
+    params: dict[str, float | int | str | bool] = Field(default_factory=dict)
+    # --- Real data mode (Phase 1) ---
+    use_real_data: bool = Field(
+        default=False,
+        description="If true, the sim loads real OSM/transit/population data; "
+        "else it uses the synthetic grid fallback.",
+    )
+    network_paths: dict[str, str] = Field(
+        default_factory=dict,
+        description="Paths to data files: 'graphml', 'metro_json', 'bus_json'.",
+    )
+    population_path: str | None = Field(
+        default=None,
+        description="Path to synthetic_population.parquet for pre-generated agents.",
+    )
 
 
 class ScenarioSummary(BaseModel):
@@ -115,8 +131,19 @@ class AggregateMetrics(BaseModel):
     avg_commute_minutes: float = 0.0
     mode_share: dict[Mode, float] = Field(default_factory=dict)
     metro_load_pct: float = 0.0
+    bus_load_pct: float = 0.0
     road_congestion_index: float = 0.0
     agents_commuting: int = 0
+    aqi_estimate: float = Field(
+        0.0, ge=0.0, le=500.0, description="Estimated AQI (0-500) from mode-share emissions."
+    )
+    special_agents: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Locations and states of special agents "
+            "(officers, drainage, police, stalls, stores)."
+        ),
+    )
 
 
 class MetricSeries(BaseModel):

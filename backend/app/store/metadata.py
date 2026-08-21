@@ -87,7 +87,9 @@ class MetadataStore:
 
     # --- helpers ---
     def _fetch_row(self, scenario_id: str) -> sqlite3.Row | None:
-        return self._conn.execute("SELECT * FROM scenarios WHERE id = ?", (scenario_id,)).fetchone()
+        return self._conn.execute(
+            "SELECT * FROM scenarios WHERE id = ? OR name = ?", (scenario_id, scenario_id)
+        ).fetchone()
 
     @staticmethod
     def _row_to_summary(row: sqlite3.Row) -> ScenarioSummary:

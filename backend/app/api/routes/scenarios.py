@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_scenario_manager, require_scenario
 from app.models.schemas import (
@@ -11,6 +13,8 @@ from app.models.schemas import (
     ScenarioSummary,
 )
 from app.services.scenario_manager import ScenarioManager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
@@ -26,7 +30,14 @@ def list_scenarios(
 def create_scenario(
     body: CreateScenarioRequest, manager: ScenarioManager = Depends(get_scenario_manager)
 ) -> ScenarioSummary:
-    return manager.create(body.config)
+    try:
+        return manager.create(body.config)
+    except FileNotFoundError as exc:
+        logger.warning("Scenario create failed — missing data files: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{scenario_id}", response_model=ScenarioSummary)
@@ -80,7 +91,14 @@ def branch_scenario(
     manager: ScenarioManager = Depends(get_scenario_manager),
 ) -> ScenarioSummary:
     require_scenario(manager, scenario_id)
-    return manager.branch(scenario_id, body.name)
+    try:
+        return manager.branch(scenario_id, body.name)
+    except FileNotFoundError as exc:
+        logger.warning("Scenario branch failed — missing data files: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete("/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT)

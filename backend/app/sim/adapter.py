@@ -11,9 +11,34 @@ logic (ROLE_5 anti-pattern).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from app.models.schemas import Event, ScenarioConfig, Snapshot
+
+
+@dataclass(frozen=True)
+class DataPaths:
+    """Resolved, on-disk inputs the real engine loads when use_real_data is set.
+
+    Internal seam between backend config and SUB-01's engine — never goes over the wire.
+    """
+
+    road_network: Path
+    metro_network: Path
+    bus_routes: Path
+    population: Path
+    weather: Path
+
+    def all(self) -> tuple[Path, ...]:
+        return (
+            self.road_network,
+            self.metro_network,
+            self.bus_routes,
+            self.population,
+            self.weather,
+        )
 
 
 @runtime_checkable
@@ -51,14 +76,16 @@ class SimEngine(Protocol):
         ...
 
 
-def build_engine(engine_kind: str, config: ScenarioConfig) -> SimEngine:
+def build_engine(
+    engine_kind: str, config: ScenarioConfig, data_paths: DataPaths | None = None
+) -> SimEngine:
     """Factory. Add real engines here as SUB-01 delivers them."""
     if engine_kind == "fake":
         from app.sim.fake_engine import FakeSimEngine
 
-        return FakeSimEngine(config)
+        return FakeSimEngine(config)  # synthetic only; ignores data_paths
     if engine_kind == "mesa":
         from simulation.engine import MesaSimEngine
 
-        return MesaSimEngine(config)
+        return MesaSimEngine(config, data_paths=data_paths)  # TODO(SUB-01 contract): confirmed
     raise ValueError(f"Unknown sim engine: {engine_kind!r} (expected 'fake' or 'mesa')")

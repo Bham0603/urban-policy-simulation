@@ -3,7 +3,7 @@ name: backend-ci
 # Integration gate for SUB-05. Keep this green (ROLE_5: red CI for >1 day = team stops trusting it).
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
   pull_request:
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]

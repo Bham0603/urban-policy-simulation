@@ -1,0 +1,110 @@
+{
+  "source": "DMRC Public Timetable 2024 / dmrc.delhi.gov.in",
+  "notes": "Peak/off-peak headways and capacities for Delhi Metro lines within the Rajiv Chowk study area. First/last train times in minutes-since-midnight.",
+  "lines": [
+    {
+      "name": "yellow",
+      "display_name": "Yellow Line",
+      "peak_headway_sec": 135,
+      "offpeak_headway_sec": 300,
+      "peak_windows": [
+        {"start_min": 420, "end_min": 630},
+        {"start_min": 1020, "end_min": 1230}
+      ],
+      "first_train_min": 360,
+      "last_train_min": 1380,
+      "capacity_per_train": 1800,
+      "trains_per_direction": 8,
+      "stations_in_study_area": [
+        "Vishwavidyalaya", "Vidhan Sabha", "Civil Lines", "Kashmere Gate",
+        "Chandni Chowk", "Chawri Bazar", "New Delhi", "Rajiv Chowk",
+        "Patel Chowk", "Central Secretariat", "Udyog Bhawan", "Race Course",
+        "Jor Bagh", "INA", "AIIMS", "Green Park"
+      ]
+    },
+    {
+      "name": "blue",
+      "display_name": "Blue Line",
+      "peak_headway_sec": 150,
+      "offpeak_headway_sec": 270,
+      "peak_windows": [
+        {"start_min": 420, "end_min": 630},
+        {"start_min": 1020, "end_min": 1230}
+      ],
+      "first_train_min": 360,
+      "last_train_min": 1380,
+      "capacity_per_train": 1800,
+      "trains_per_direction": 10,
+      "stations_in_study_area": [
+        "Dwarka Sector 21", "Dwarka Sector 8", "Dwarka Sector 9",
+        "Dwarka Sector 10", "Dwarka Sector 11", "Dwarka Sector 12",
+        "Dwarka Sector 13", "Dwarka Sector 14", "Dwarka", "Dwarka Mor",
+        "Nawada", "Uttam Nagar East", "Uttam Nagar West", "Janakpuri West",
+        "Janakpuri East", "Tilak Nagar", "Subhash Nagar", "Tagore Garden",
+        "Rajouri Garden", "Ramesh Nagar", "Moti Nagar", "Kirti Nagar",
+        "Shadipur", "Patel Nagar", "Rajendra Place", "Karol Bagh",
+        "Jhandewalan", "RK Ashram Marg", "Barakhamba Road", "Rajiv Chowk",
+        "Pragati Maidan", "Indraprastha", "Yamuna Bank"
+      ]
+    },
+    {
+      "name": "red",
+      "display_name": "Red Line",
+      "peak_headway_sec": 180,
+      "offpeak_headway_sec": 360,
+      "peak_windows": [
+        {"start_min": 420, "end_min": 630},
+        {"start_min": 1020, "end_min": 1230}
+      ],
+      "first_train_min": 360,
+      "last_train_min": 1380,
+      "capacity_per_train": 1600,
+      "trains_per_direction": 6,
+      "stations_in_study_area": [
+        "Dilshad Garden", "Jhilmil", "Mansarovar Park", "Shahdara",
+        "Welcome", "Seelampur", "Shastri Park", "Kashmere Gate",
+        "Tis Hazari", "Pul Bangash", "Pratap Nagar", "Shastri Nagar",
+        "Inderlok", "Kanhaiya Nagar", "Keshav Puram", "Netaji Subhash Place",
+        "Kohat Enclave", "Pitampura", "Rohini East", "Rohini West", "Rithala"
+      ]
+    },
+    {
+      "name": "green",
+      "display_name": "Green Line",
+      "peak_headway_sec": 210,
+      "offpeak_headway_sec": 420,
+      "peak_windows": [
+        {"start_min": 420, "end_min": 630},
+        {"start_min": 1020, "end_min": 1230}
+      ],
+      "first_train_min": 360,
+      "last_train_min": 1380,
+      "capacity_per_train": 1400,
+      "trains_per_direction": 4,
+      "stations_in_study_area": [
+        "Inderlok", "Ashok Park Main", "Punjabi Bagh", "Shivaji Park",
+        "Madipur", "Paschim Vihar East", "Paschim Vihar West",
+        "Peera Garhi", "Udyog Nagar", "Mundka"
+      ]
+    },
+    {
+      "name": "violet",
+      "display_name": "Violet Line",
+      "peak_headway_sec": 165,
+      "offpeak_headway_sec": 330,
+      "peak_windows": [
+        {"start_min": 420, "end_min": 630},
+        {"start_min": 1020, "end_min": 1230}
+      ],
+      "first_train_min": 360,
+      "last_train_min": 1380,
+      "capacity_per_train": 1800,
+      "trains_per_direction": 7,
+      "stations_in_study_area": [
+        "Kashmere Gate", "Lal Quila", "Jama Masjid", "Delhi Gate",
+        "ITO", "Mandi House", "Janpath", "Central Secretariat",
+        "Khan Market", "JLN Stadium", "Jangpura", "Lajpat Nagar"
+      ]
+    }
+  ]
+}
